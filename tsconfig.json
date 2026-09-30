@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    // Миграция идёт файл за файлом: .jsx и .tsx живут рядом.
+    // checkJs выключен — старый JS не проверяем, новый код пишем на TS.
+    "allowJs": true,
+    "checkJs": false,
+
+    "paths": { "@/*": ["./src/*"] }
+  },
+  "include": ["src"]
+}

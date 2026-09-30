@@ -1,0 +1,322 @@
+@import 'tailwindcss';
+
+/* Шрифты Global Expo: заголовки — Montserrat (им же набран сайт компании),
+   текст — Manrope, служебные подписи и индексы разделов — JetBrains Mono.
+   Все три — вариативные и с кириллицей, лежат в node_modules (@fontsource),
+   интернет не нужен. */
+@import '@fontsource-variable/montserrat/wght.css';
+@import '@fontsource-variable/manrope/wght.css';
+@import '@fontsource-variable/jetbrains-mono/wght.css';
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  Визуальный язык «Павильон»: выставочный зал в плане. Строгие прямые углы,
+  тонкие линии вместо теней, чертёжная сетка, тёмно-зелёная «вывеска»
+  навигации и фирменный изумрудный Global Expo как единственный акцент.
+
+  Имена токенов (paper, ink, indigo-*, lime-*) оставлены прежними: их знают
+  все экраны. indigo-* здесь — фирменная зелёная шкала, lime-* — светлый
+  мятный сигнальный цвет для точек и счётчиков на тёмном фоне.
+*/
+@theme {
+  --color-paper: #eef1ef;
+  --color-surface: #ffffff;
+
+  --color-ink: #0b1a13;
+  --color-ink-soft: #3d4b44;
+  --color-ink-muted: #75827b;
+
+  --color-line: rgba(11, 26, 19, 0.12);
+
+  /* Тёмная «вывеска»: шапка, экран входа, акцентные плашки. */
+  --color-forest: #07170f;
+  --color-forest-soft: #0d2419;
+  --color-forest-line: rgba(255, 255, 255, 0.1);
+
+  --color-indigo-50: #ebf6ef;
+  --color-indigo-100: #d3ecdd;
+  --color-indigo-200: #a8d9bb;
+  --color-indigo-300: #6fc193;
+  --color-indigo-400: #2e9c62;
+  --color-indigo-500: #0e7745;
+  --color-indigo-600: #0b653a;
+  --color-indigo-700: #09512f;
+  --color-indigo-800: #073d23;
+  --color-indigo-900: #052a18;
+
+  --color-lime-50: #edfcf4;
+  --color-lime-100: #d2f7e3;
+  --color-lime-200: #a5efc8;
+  --color-lime-300: #62e0a0;
+  --color-lime-400: #34cf85;
+  --color-lime-500: #1eae6a;
+  --color-lime-600: #117a48;
+
+  --color-success: #12894c;
+  --color-warning: #c77800;
+  --color-danger: #d93a3f;
+
+  /* Токены в именах shadcn/ui — на случай компонентов с ui.shadcn.com.
+     Свои имена не переименовываем, а сопоставляем. */
+  --color-background: var(--color-surface);
+  --color-foreground: var(--color-ink);
+  --color-muted: rgba(11, 26, 19, 0.05);
+  --color-muted-foreground: var(--color-ink-muted);
+  --color-border: var(--color-line);
+
+  --font-display: 'Montserrat Variable', Montserrat, system-ui, sans-serif;
+  --font-display-cond: 'Montserrat Variable', Montserrat, system-ui, sans-serif;
+  --font-sans:
+    'Manrope Variable', Manrope, system-ui, -apple-system, sans-serif;
+  --font-mono:
+    'JetBrains Mono Variable', ui-monospace, SFMono-Regular, monospace;
+
+  /* Montserrat широкий — кегли заголовков ниже, чем у узких гарнитур. */
+  --text-display-xl: clamp(2.2rem, 4vw, 3.2rem);
+  --text-display-xl--line-height: 1.04;
+  --text-display-xl--letter-spacing: -0.035em;
+  --text-display-lg: clamp(1.65rem, 2.6vw, 2.2rem);
+  --text-display-lg--line-height: 1.08;
+  --text-display-lg--letter-spacing: -0.03em;
+  --text-display-md: 1.4rem;
+  --text-display-md--line-height: 1.15;
+  --text-display-md--letter-spacing: -0.025em;
+
+  /* Прямые углы: у выставочных стендов нет скруглений. Шкала сжата, но не
+     обнулена — чтобы поля и кнопки не казались вырезанными из бумаги. */
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --radius-xl: 4px;
+  --radius-2xl: 5px;
+  --radius-3xl: 6px;
+
+  /* Теней почти нет — уровни читаются по линиям. Остались только у того,
+     что действительно парит над страницей: панели, меню, тосты. */
+  --shadow-soft: 0 1px 0 rgba(11, 26, 19, 0.04);
+  --shadow-lift:
+    0 24px 60px -24px rgba(7, 23, 15, 0.42), 0 2px 8px rgba(7, 23, 15, 0.08);
+  --shadow-pop: 0 0 0 4px rgba(14, 119, 69, 0.16);
+  --shadow-inset: inset 0 -2px 0 rgba(7, 23, 15, 0.12);
+
+  /* Чертёжная сетка: светлая — для страниц, «синька» — для тёмной вывески. */
+  --background-image-grid-fade:
+    linear-gradient(rgba(11, 26, 19, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(11, 26, 19, 0.06) 1px, transparent 1px);
+  --background-image-blueprint:
+    linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  --background-image-aurora: linear-gradient(
+    120deg,
+    rgba(14, 119, 69, 0.1) 0%,
+    transparent 45%
+  );
+  /* Штриховка — у пустых и отключённых зон, как на чертеже. */
+  --background-image-hatch: repeating-linear-gradient(
+    -45deg,
+    rgba(11, 26, 19, 0.05) 0 1px,
+    transparent 1px 7px
+  );
+
+  --animate-fade-up: fade-up 0.45s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  /* Зона загрузки отчёта: парение иконки и бегущая по краю рамка. */
+  --animate-float: float 3.2s ease-in-out infinite;
+  --animate-glow: glow 2.8s linear infinite;
+  /* Бегущая полоса лоадера. */
+  --animate-scan: scan 1.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+
+  @keyframes glow {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-4px);
+    }
+  }
+
+  @keyframes fade-up {
+    0% {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes scan {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(250%);
+    }
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@utility glass {
+  /* Плотная поверхность без размытия — «стекло» у Global Expo матовое. */
+  background: rgba(255, 255, 255, 0.96);
+}
+
+@utility focus-ring {
+  /* Фокус — квадратная изумрудная рамка со светлым зазором. */
+  outline: none;
+  &:focus-visible {
+    box-shadow:
+      0 0 0 2px var(--color-surface),
+      0 0 0 4px var(--color-indigo-500);
+  }
+}
+
+@utility text-gradient {
+  /* Акцент в тексте — без градиента: фирменный зелёный. */
+  color: var(--color-indigo-600);
+}
+
+@utility no-scrollbar {
+  /* Скрытие скроллбара там, где нужен чистый вид */
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@utility tnum {
+  /* Числовые таблицы — моноширинные цифры для ровных колонок */
+  font-variant-numeric: tabular-nums;
+}
+
+@utility eyebrow {
+  /* Служебная надпись над заголовком: моно, капсом, с разрядкой. */
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+@utility corner-ticks {
+  /* Уголки-засечки по краям блока, как метки на плане павильона. */
+  background-image:
+    linear-gradient(var(--color-indigo-500), var(--color-indigo-500)),
+    linear-gradient(var(--color-indigo-500), var(--color-indigo-500)),
+    linear-gradient(var(--color-indigo-500), var(--color-indigo-500)),
+    linear-gradient(var(--color-indigo-500), var(--color-indigo-500));
+  background-size:
+    14px 2px,
+    2px 14px,
+    14px 2px,
+    2px 14px;
+  background-position:
+    0 0,
+    0 0,
+    100% 100%,
+    100% 100%;
+  background-repeat: no-repeat;
+}
+
+@utility animate-pulse-ring {
+  /* Пульсирующая подсветка рамки — для того, что ждёт действия. */
+  animation: pulse-ring 2s ease-in-out infinite;
+}
+
+@layer base {
+  :root {
+    --ring: 14 119 69;
+  }
+
+  * {
+    border-color: var(--color-line);
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+  }
+
+  /* Заголовки — плотный Montserrat в строчном регистре. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 700;
+  }
+
+  ::selection {
+    background: var(--color-indigo-500);
+    color: #fff;
+  }
+
+  /* Тонкий прямоугольный скроллбар */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(11, 26, 19, 0.18);
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(11, 26, 19, 0.32);
+    background-clip: content-box;
+  }
+}
+
+@layer utilities {
+  @keyframes pulse-ring {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(217, 58, 63, 0.32);
+    }
+    50% {
+      box-shadow: 0 0 0 6px rgba(217, 58, 63, 0);
+    }
+  }
+}
+
+/* Кто попросил систему уменьшить движение — тому декоративные петли не нужны. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-float,
+  .animate-glow,
+  .animate-scan {
+    animation: none;
+  }
+}
