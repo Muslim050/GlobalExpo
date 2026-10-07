@@ -16,6 +16,7 @@ import Advertisers from '@/pages/Advertisers.jsx'
 import ContractOverview from '@/pages/ContractOverview.jsx'
 import Channels from '@/pages/Channels.jsx'
 import Reports from '@/pages/Reports.jsx'
+import Stands from '@/pages/Stands.jsx'
 import NotFound from '@/pages/NotFound.jsx'
 
 /** Стартовый экран обеих ролей. */
@@ -115,6 +116,14 @@ const overviewRoute = createRoute({
   component: Dashboard,
 })
 
+// Каталог стендов: экспоненту закрыт — он видит пакет в своём договоре.
+const standsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: 'stands',
+  beforeLoad: requireRoles(['admin', 'viewer']),
+  component: Stands,
+})
+
 const channelsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: 'channels',
@@ -147,6 +156,7 @@ const routeTree = rootRoute.addChildren([
     advertisersRoute,
     usersRoute,
     overviewRoute,
+    standsRoute,
     channelsRoute,
     reportsRoute,
   ]),

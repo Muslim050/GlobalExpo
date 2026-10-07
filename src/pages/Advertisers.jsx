@@ -73,16 +73,16 @@ export default function Advertisers() {
 
   const del = async (a) => {
     const ok = await confirm({
-      title: 'Удалить рекламодателя?',
+      title: 'Удалить экспонента?',
       description: a.name,
       body: 'Вместе с брендом удалятся его договоры. Действие нельзя отменить.',
     })
     if (!ok) return
 
     deleteAdvertiser(a.id, {
-      onSuccess: () => toast.info('Рекламодатель удалён'),
+      onSuccess: () => toast.info('Экспонент удалён'),
       onError: (err) =>
-        toast.error(err.message || 'Не удалось удалить рекламодателя'),
+        toast.error(err.message || 'Не удалось удалить экспонента'),
     })
   }
 
@@ -92,7 +92,7 @@ export default function Advertisers() {
   const tabs = (
     <>
       <PageHeader
-        title="Рекламодатели"
+        title="Экспоненты"
         subtitle="Бренды-участники, их договоры и доступы к платформе."
       />
       {canManageUsers && (
@@ -101,7 +101,7 @@ export default function Advertisers() {
           value={tab}
           onChange={setTab}
           items={[
-            { value: 'advertisers', label: 'Рекламодатели' },
+            { value: 'advertisers', label: 'Экспоненты' },
             { value: 'users', label: 'Пользователи' },
             { value: 'online', label: 'Кто в сети' },
           ]}
@@ -115,7 +115,7 @@ export default function Advertisers() {
 
   // Пока брендов нет, показываем только ожидание: панель с поиском и
   // пустыми вкладками рядом с лоадером выглядит недособранной.
-  if (isPending) return <Loader label="Загружаем рекламодателей…" />
+  if (isPending) return <Loader label="Загружаем экспонентов…" />
 
   return (
     <FadeIn>
@@ -143,7 +143,7 @@ export default function Advertisers() {
             onClick={() => setModal({ open: true, initial: null })}
           >
             <Plus size={18} />
-            Новый рекламодатель
+            Новый экспонент
           </Button>
         )}
       </div>
@@ -152,7 +152,7 @@ export default function Advertisers() {
         <Card>
           <EmptyState
             icon={Building2}
-            title="Не удалось загрузить рекламодателей"
+            title="Не удалось загрузить экспонентов"
             description={error?.message ?? 'Попробуйте ещё раз.'}
             action={
               <Button variant="secondary" onClick={() => refetch()}>
@@ -165,8 +165,8 @@ export default function Advertisers() {
         <Card>
           <EmptyState
             icon={Building2}
-            title="Рекламодателей нет"
-            description="Список рекламодателей пока пуст."
+            title="Экспонентов нет"
+            description="Список экспонентов пока пуст."
             action={
               canEdit ? (
                 <Button
@@ -251,7 +251,7 @@ export default function Advertisers() {
                       label="Договоров"
                       value={a.contracts?.length ?? 0}
                     />
-                    <Metric label="Кампаний" value={a.campaignsCount ?? 0} />
+                    <Metric label="Стендов" value={a.campaignsCount ?? 0} />
                   </div>
                 </Card>
               </motion.div>

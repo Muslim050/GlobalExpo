@@ -40,6 +40,9 @@ const PIPELINE = [
   'sent',
   'received',
   'reviewing',
+  'project_sent',
+  'project_rework',
+  'project_approved',
   'active',
   'awaiting_payment',
   'paid',
@@ -159,7 +162,7 @@ export default function Dashboard() {
     <FadeIn>
       <PageHeader
         title={firstName ? `Здравствуйте, ${firstName}` : 'Обзор'}
-        subtitle={`Бренды, договоры, деньги и кампании Global Expo на ${formatDate(now)}.`}
+        subtitle={`Бренды, договоры, деньги и стенды Global Expo на ${formatDate(now)}.`}
       />
 
       {/* Табло: деньги и работа — главные цифры одной строкой. */}
@@ -199,9 +202,9 @@ export default function Dashboard() {
         />
         <Tile
           icon={Megaphone}
-          label="Кампании в работе"
+          label="Стенды в работе"
           value={data.active}
-          hint={`Всего кампаний: ${campaigns.length}`}
+          hint={`Всего стендов: ${campaigns.length}`}
         />
       </section>
 
@@ -232,7 +235,7 @@ export default function Dashboard() {
         <Card>
           <CardHeader>
             <div>
-              <p className="eyebrow text-ink-muted">Кампании</p>
+              <p className="eyebrow text-ink-muted">Стенды</p>
               <CardTitle className="mt-1.5">Путь заявки</CardTitle>
             </div>
           </CardHeader>
@@ -389,7 +392,7 @@ export default function Dashboard() {
               to="/app/campaigns"
               className="flex items-center gap-1 text-[12px] font-semibold text-indigo-600 hover:text-indigo-800 focus-ring"
             >
-              Все кампании
+              Все стенды
               <ArrowRight size={13} />
             </Link>
           </CardHeader>

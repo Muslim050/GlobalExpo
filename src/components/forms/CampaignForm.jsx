@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Download, FileText, Film } from 'lucide-react'
+import { Download, FileText } from 'lucide-react'
 // Кампании переехали на сервер. Мок остаётся для разделов, которые ещё
 // не подключены: import { useData } from '@/context/DataContext.jsx'
 import { useVisibleAdvertisers } from '@/features/advertisers/queries'
@@ -11,17 +11,29 @@ import { useToast } from '@/components/ui/Toast.jsx'
 import { Modal } from '@/components/ui/Modal.jsx'
 import { Button } from '@/components/ui/Button'
 import { Field, Input, Select } from '@/components/ui/Field'
-import { FilePicker } from '@/components/ui/FilePicker.jsx'
-import { absoluteUrl } from '@/api/endpoints/files'
 import { Logo } from '@/components/Logo'
-import { STATUS, statusLabel } from '@/lib/metrics.js'
+import {
+  STATUS,
+  exhibitionLabel,
+  packageLabel,
+  statusLabel,
+} from '@/lib/metrics.js'
+import { formatMoney, formatNumber } from '@/lib/format.js'
 
 /**
  * Статусы, которых нет в выборе: оплату ведёт договор — помесячно и своим
  * статусом, — поэтому у кампании такой статус её дублировал бы. Архив
  * отсюда тоже не ставится.
  */
-const HIDDEN_STATUS = ['archived', 'awaiting_payment', 'paid']
+const HIDDEN_STATUS = [
+  'archived',
+  'awaiting_payment',
+  'paid',
+  // Статусы 3D проекта ставит согласование в карточке стенда, не руками.
+  'project_sent',
+  'project_rework',
+  'project_approved',
+]
 
 const emptyForm = {
   name: '',
@@ -29,55 +41,9 @@ const emptyForm = {
   status: 'sent',
   startDate: '',
   endDate: '',
-  // Ролик приходит из выбранной рекламной кампании — дефолта нет.
-  // Внутри — `{ id?, name, url, addedAt }`: id есть у своего файла,
-  // у ролика договора его нет, такой уходит ссылкой.
-  creative: null,
   contractNumber: '',
-}
-
-/** Имя файла из ссылки — подпись ролику, если своей нет. */
-const fileNameFromUrl = (url) => (url ? url.split('/').pop() || '' : '')
-
-/**
- * Ролик кампании: загруженный файл лежит в `creative`, у записей постарше
- * вместо него внешняя ссылка в `creativeUrl`.
- */
-const campaignCreative = (campaign) => {
-  if (campaign.creative?.url) return { ...campaign.creative }
-  if (!campaign.creativeUrl) return null
-  return {
-    name: campaign.creativeName || fileNameFromUrl(campaign.creativeUrl),
-    url: campaign.creativeUrl,
-    addedAt: campaign.creativeAddedAt || '',
-  }
-}
-
-/**
- * Ролик в полях запроса. Свой файл уходит идентификатором из загрузчика;
- * ролик договора — ссылкой: id файла договор наружу не отдаёт, только
- * `{name, url, addedAt}`. Ссылка обязана быть абсолютной — `creativeUrl`
- * сервер проверяет как URL.
- */
-const creativeInput = (creative) => {
-  if (creative?.id) {
-    // Файл заменяет ссылку: иначе в кампании осталось бы два ролика сразу.
-    return {
-      creativeId: creative.id,
-      creativeUrl: '',
-      creativeName: '',
-      creativeAddedAt: null,
-    }
-  }
-  return {
-    creativeId: null,
-    creativeUrl: creative ? absoluteUrl(creative.url) : '',
-    creativeName: creative?.name ?? '',
-    // Дату загрузки ставим сами, если ролик появился только что.
-    creativeAddedAt: creative
-      ? creative.addedAt || new Date().toISOString()
-      : null,
-  }
+  // Бренд стенда — выбирает только площадка на создании.
+  advertiserId: null,
 }
 
 /** Кампания с сервера → состояние формы. */
@@ -87,11 +53,16 @@ const formFrom = (campaign) => ({
   status: campaign.status,
   startDate: campaign.startDate ?? '',
   endDate: campaign.endDate ?? '',
-  creative: campaignCreative(campaign),
   contractNumber: campaign.contractNumber || '',
 })
 
-export function CampaignForm({ open, onClose, initial }) {
+/**
+ * Заказ и правка стенда. Заказывает рекламодатель — за свой бренд — или
+ * площадка за выбранный бренд: тогда сервер ставит статус «Получен».
+ * `defaultAdvertiserId` — бренд, который подставить площадке сразу
+ * (например, открыта его вкладка).
+ */
+export function CampaignForm({ open, onClose, initial, defaultAdvertiserId }) {
   const { mutate: saveCampaign, isPending } = useSaveCampaign()
   const { data: advertisers = [] } = useVisibleAdvertisers()
   const { user, isAdmin, isAdvertiser } = useAuth()
@@ -100,9 +71,17 @@ export function CampaignForm({ open, onClose, initial }) {
   const [form, setForm] = useState(emptyForm)
   const [errors, setErrors] = useState({})
 
-  // Бренд заявки: у рекламодателя свой, у площадки — бренд правимой кампании.
-  // Сменить его нельзя: на создании сервер берёт бренд из сессии автора.
-  const advertiserId = editing ? initial.advertiserId : user?.advertiserId
+  // Бренд выбирает площадка, когда сама заказывает стенд: своего бренда у
+  // неё нет, и сервер ждёт `advertiserId` в теле.
+  const pickBrand = !editing && !isAdvertiser
+  // Бренд стенда: у рекламодателя свой — сервер берёт его из сессии, у
+  // правимого стенда — его, у нового стенда площадки — выбранный. У уже
+  // заведённого стенда бренд не меняется.
+  const advertiserId = editing
+    ? initial.advertiserId
+    : pickBrand
+      ? form.advertiserId
+      : user?.advertiserId
   const advertiser = advertisers.find((a) => a.id === advertiserId)
   // Договоры бренда — выбираются по названию; внутренний ключ договора
   // уходит на сервер, и условия он подставит в кампанию сам.
@@ -110,17 +89,13 @@ export function CampaignForm({ open, onClose, initial }) {
   const selectedContract = contracts.find(
     (c) => c.number === form.contractNumber,
   )
-  // Рекламодателю ролик приходит из договора — он его не правит и не грузит.
-  const creativeLocked = isAdvertiser && !!selectedContract?.creative
-  // Ролик заявки. Если поле заблокировано, а своего ролика у кампании нет,
-  // берём ролик договора: иначе заявка с другим названием осталась бы без
-  // ролика, а загрузить свой рекламодатель не может — поле закрыто.
-  const creative =
-    form.creative ?? (creativeLocked ? selectedContract.creative : null)
-
   useEffect(() => {
     if (!open) return
-    setForm(initial ? formFrom(initial) : emptyForm)
+    setForm(
+      initial
+        ? formFrom(initial)
+        : { ...emptyForm, advertiserId: defaultAdvertiserId ?? null },
+    )
     setErrors({})
     // Зависимости — по id: после сохранения список обновится, и форма иначе
     // сбросила бы несохранённые правки сама на себя.
@@ -129,51 +104,41 @@ export function CampaignForm({ open, onClose, initial }) {
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
 
-  /**
-   * Выбрали рекламную кампанию — вместе с ней подтягивается ролик договора.
-   * Дальше это снимок: правка договора существующие кампании не меняет.
-   */
-  const selectCampaign = (name) => {
-    const creative =
-      name && name === selectedContract?.campaignName
-        ? selectedContract.creative
-        : null
-    setForm((f) => ({ ...f, name, ...(creative ? { creative } : null) }))
-  }
-
-  /** Выбрали или убрали ролик. Загрузчик отдаёт `{ id, name, url, addedAt }`. */
-  const pickCreative = (file) => {
-    setForm((f) => ({ ...f, creative: file }))
-    setErrors((e) => ({ ...e, creative: undefined }))
+  /** Сменили бренд — его договоры другие, выбранный договор сбрасываем. */
+  const pickAdvertiser = (id) => {
+    setForm((f) => ({ ...f, advertiserId: id, contractNumber: '' }))
+    setErrors((e) => ({ ...e, advertiserId: undefined }))
   }
 
   const submit = () => {
     const err = {}
-    if (!form.name.trim()) err.name = 'Укажите название'
+    if (pickBrand && !form.advertiserId)
+      err.advertiserId = 'Выберите экспонента'
+    // Отдельного поля названия нет: новый стенд называется по договору,
+    // у заведённого название остаётся прежним.
+    if (!selectedContract && !editing) err.contractNumber = 'Выберите договор'
     if (!form.startDate) err.startDate = 'Укажите начало периода'
     if (!form.endDate) err.endDate = 'Укажите окончание периода'
     if (form.startDate && form.endDate && form.endDate < form.startDate) {
       err.endDate = 'Окончание должно быть позже начала'
     }
-    // Без ролика заявку не заводим: площадка иначе принимает в работу
-    // кампанию, которую нечем показывать в эфире.
-    if (!creative) err.creative = 'Загрузите рекламный ролик'
     setErrors(err)
     if (Object.keys(err).length) return
 
     const campaign = {
-      name: form.name.trim(),
+      name: editing ? form.name : contractTitle(selectedContract),
       objective: form.objective,
       startDate: form.startDate,
       endDate: form.endDate,
       // Условия договора сервер проставляет сам по его ключу: юр. лицо
       // и дату оплаты отправлять не нужно.
       contractNumber: form.contractNumber,
-      ...creativeInput(creative),
     }
-    // Статус ведёт площадка, и только у существующей заявки: новая всегда
-    // заводится как «Отправлен».
+    // Статус ведёт площадка, и только у существующей заявки: новую сервер
+    // заводит сам — «Отправлен» у рекламодателя, «Получен» у площадки.
     if (editing && isAdmin) campaign.status = form.status
+    // Площадка заказывает стенд за бренд — без него сервер отвечает 400.
+    if (pickBrand) campaign.advertiserId = form.advertiserId
 
     saveCampaign(
       { id: initial?.id, campaign },
@@ -191,7 +156,13 @@ export function CampaignForm({ open, onClose, initial }) {
               )}`,
             )
           } else {
-            toast.success(editing ? 'Кампания обновлена' : 'Кампания создана')
+            toast.success(
+              editing
+                ? 'Стенд обновлён'
+                : isAdvertiser
+                  ? 'Стенд заказан'
+                  : 'Стенд создан',
+            )
           }
           onClose()
         },
@@ -200,7 +171,7 @@ export function CampaignForm({ open, onClose, initial }) {
           if (err2.fields && Object.keys(err2.fields).length) {
             setErrors(err2.fields)
           }
-          toast.error(err2.message || 'Не удалось сохранить кампанию')
+          toast.error(err2.message || 'Не удалось сохранить стенд')
         },
       },
     )
@@ -211,11 +182,17 @@ export function CampaignForm({ open, onClose, initial }) {
       open={open}
       onClose={onClose}
       logo={<Logo size={40} withWord={false} />}
-      title={editing ? 'Редактировать кампанию' : 'Новая кампания'}
+      title={
+        editing
+          ? 'Редактировать стенд'
+          : isAdvertiser
+            ? 'Заказать стенд'
+            : 'Создать стенд'
+      }
       description={
         editing
-          ? 'Обновите параметры кампании.'
-          : 'Заполните параметры запуска кампаний.'
+          ? 'Обновите параметры стенда.'
+          : 'Заполните параметры запуска стенда.'
       }
       size="lg"
       footer={
@@ -224,20 +201,16 @@ export function CampaignForm({ open, onClose, initial }) {
             Отмена
           </Button>
           <Button variant="primary" onClick={submit} disabled={isPending}>
-            {isPending
-              ? 'Сохраняем…'
-              : editing
-                ? 'Сохранить'
-                : 'Создать кампанию'}
+            {isPending ? 'Сохраняем…' : editing ? 'Сохранить' : 'Создать стенд'}
           </Button>
         </>
       }
     >
       <div className="space-y-4">
-        {/* Период кампании идёт первым — с него начинают заполнять форму. */}
+        {/* Период стенда идёт первым — с него начинают заполнять форму. */}
         <div>
           <p className="mb-2 text-[13px] font-medium text-ink-soft">
-            Период кампании <span className="text-danger">*</span>
+            Период стенда <span className="text-danger">*</span>
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Начало периода" required error={errors.startDate}>
@@ -259,21 +232,87 @@ export function CampaignForm({ open, onClose, initial }) {
           </div>
         </div>
 
-        {/* Сначала договор, затем рекламная кампания из него: с ней в форму
-            приходит ролик, а на сервере — условия договора. */}
+        {/* После дат площадка выбирает экспонента: от него зависят договоры. */}
+        {pickBrand && (
+          <Field label="Экспонент" required error={errors.advertiserId}>
+            <Select
+              value={form.advertiserId ?? ''}
+              onChange={(e) => pickAdvertiser(Number(e.target.value) || null)}
+            >
+              <option value="">— выберите экспонента —</option>
+              {[...advertisers]
+                .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+                .map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+            </Select>
+          </Field>
+        )}
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Площадь и выставку ведёт площадка в договоре — здесь только
+              показываем. */}
+          <Field
+            label="Площадь, м²"
+            hint={
+              selectedContract ? undefined : 'Появится из выбранного договора.'
+            }
+          >
+            <Input
+              value={
+                selectedContract?.standArea
+                  ? formatNumber(selectedContract.standArea)
+                  : ''
+              }
+              placeholder="Из договора"
+              disabled
+              readOnly
+            />
+          </Field>
+          <Field
+            label="Выставка"
+            hint={
+              selectedContract ? undefined : 'Появится из выбранного договора.'
+            }
+          >
+            <Input
+              value={
+                selectedContract?.exhibition
+                  ? exhibitionLabel(selectedContract.exhibition)
+                  : ''
+              }
+              placeholder="Из договора"
+              disabled
+              readOnly
+            />
+          </Field>
+        </div>
+
+        {/* Договор задаёт стенду всё: название, пакет, стоимость и условия
+            оплаты — сервер подставит их по ключу договора. */}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             label="Договор"
+            required={!editing}
             error={errors.contractNumber}
             hint={
-              contracts.length
-                ? 'Юр. лицо и условия оплаты подставятся из договора.'
-                : 'У бренда нет договоров — их заводит площадка в карточке рекламодателя.'
+              !advertiserId
+                ? 'Сначала выберите экспонента.'
+                : contracts.length
+                  ? 'Площадь, выставка, пакет, стоимость и условия оплаты подставятся из договора.'
+                  : isAdvertiser
+                    ? 'У бренда нет договоров — их заводит площадка в карточке экспонента.'
+                    : 'У бренда нет договоров — добавьте их в карточке экспонента.'
             }
           >
             <Select
               value={form.contractNumber}
-              onChange={(e) => set('contractNumber', e.target.value)}
+              onChange={(e) => {
+                set('contractNumber', e.target.value)
+                setErrors((er) => ({ ...er, contractNumber: undefined }))
+              }}
               disabled={!contracts.length}
             >
               <option value="">— выберите договор —</option>
@@ -283,62 +322,6 @@ export function CampaignForm({ open, onClose, initial }) {
                 </option>
               ))}
             </Select>
-          </Field>
-
-          {/* Название кампании вписывают руками. Совпало с названием из
-              договора — вместе с ним подтянется ролик. */}
-          <Field
-            label="Рекламная кампания"
-            required
-            error={errors.name}
-            hint={
-              selectedContract?.campaignName
-                ? `В договоре указана: ${selectedContract.campaignName}`
-                : undefined
-            }
-          >
-            <Input
-              list={
-                selectedContract?.campaignName
-                  ? 'contract-campaigns'
-                  : undefined
-              }
-              value={form.name}
-              onChange={(e) => selectCampaign(e.target.value)}
-              placeholder="Например, Летняя распродажа"
-            />
-            {selectedContract?.campaignName && (
-              <datalist id="contract-campaigns">
-                <option value={selectedContract.campaignName} />
-              </datalist>
-            )}
-          </Field>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field
-            label="Рекламный ролик"
-            required
-            error={errors.creative}
-            hint={
-              creativeLocked
-                ? 'Ролик приходит из выбранного договора'
-                : 'Выберите ролик или перетащите файл'
-            }
-          >
-            <FilePicker
-              kind="creative"
-              name={creative?.name}
-              url={creative?.url}
-              addedAt={creative?.addedAt}
-              accept="video/*"
-              icon={Film}
-              emptyLabel="Загрузить ролик"
-              downloadLabel="Посмотреть ролик"
-              action="open"
-              onPick={pickCreative}
-              disabled={creativeLocked}
-            />
           </Field>
 
           {/* Скан договора: скачивание закрыто токеном, поэтому не ссылка,
@@ -362,6 +345,42 @@ export function CampaignForm({ open, onClose, initial }) {
                 {selectedContract ? 'К договору не приложен' : 'Из договора'}
               </div>
             )}
+          </Field>
+        </div>
+
+        {/* Пакет и стоимость ведёт площадка в договоре — здесь только
+            показываем. Стоимость стенда — сумма договора. */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="Пакет"
+            hint={
+              selectedContract ? undefined : 'Появится из выбранного договора.'
+            }
+          >
+            <Input
+              value={packageLabel(selectedContract?.package)}
+              placeholder="Из договора"
+              disabled
+              readOnly
+            />
+          </Field>
+
+          <Field
+            label="Стоимость"
+            hint={
+              selectedContract ? undefined : 'Появится из выбранного договора.'
+            }
+          >
+            <Input
+              value={
+                Number(selectedContract?.budget)
+                  ? `${formatMoney(selectedContract.budget)} сум`
+                  : ''
+              }
+              placeholder="Из договора"
+              disabled
+              readOnly
+            />
           </Field>
         </div>
 

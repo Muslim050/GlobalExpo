@@ -7,19 +7,27 @@ import {
   ChevronDown,
   FolderOpen,
   Gauge,
+  Landmark,
+  Package,
+  Ruler,
 } from 'lucide-react'
 import { useAuth } from '@/features/auth/useAuth'
 // Договоры переехали на сервер. Мок остаётся для разделов, которые ещё
 // не подключены: import { useData } from '@/context/DataContext.jsx'
 import { useUpdateContract } from '@/features/contracts/queries'
 import { useToast } from '@/components/ui/Toast.jsx'
-import { CONTRACT_STATUS } from '@/lib/metrics.js'
+import {
+  CONTRACT_STATUS,
+  exhibitionLabel,
+  packageLabel,
+} from '@/lib/metrics.js'
 import { contractTitle } from '@/features/contracts/title'
 import {
   formatDate,
   formatDateTime,
   formatMoney,
   formatMoneyCompact,
+  formatNumber,
   formatPct,
 } from '@/lib/format.js'
 import { Modal } from '@/components/ui/Modal.jsx'
@@ -108,6 +116,25 @@ export function ContractPreviewModal({ contract, advertiser, onClose }) {
           label: 'Юр. лицо',
           icon: Building2,
           value: isAdvertiser ? null : contract.legalName,
+        },
+        {
+          label: 'Выставка',
+          icon: Landmark,
+          value: contract.exhibition
+            ? exhibitionLabel(contract.exhibition)
+            : null,
+        },
+        {
+          label: 'Пакет',
+          icon: Package,
+          value: packageLabel(contract.package),
+        },
+        {
+          label: 'Площадь стенда',
+          icon: Ruler,
+          value: contract.standArea
+            ? `${formatNumber(contract.standArea)} м²`
+            : null,
         },
         {
           label: 'Файл договора',

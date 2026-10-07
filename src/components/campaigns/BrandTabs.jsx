@@ -28,7 +28,7 @@ export function BrandTabs({ items, value, onChange, className }) {
     <div
       ref={listRef}
       role="tablist"
-      aria-label="Рекламодатели"
+      aria-label="Экспоненты"
       className={cn(
         'no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1 pt-2.5 md:flex-wrap md:overflow-visible',
         className,
@@ -83,7 +83,7 @@ export function BrandTabs({ items, value, onChange, className }) {
                     ? 'bg-white/12 text-white/80'
                     : 'bg-ink/6 text-ink-soft',
                 )}
-                title={`Всего кампаний: ${b.count}`}
+                title={`Всего стендов: ${b.count}`}
               >
                 {b.count}
               </span>
@@ -97,7 +97,7 @@ export function BrandTabs({ items, value, onChange, className }) {
                     ? 'bg-lime-300/15 text-lime-300'
                     : 'bg-indigo-50 text-indigo-700',
                 )}
-                title={`Активных кампаний: ${b.active}`}
+                title={`Активных стендов: ${b.active}`}
               >
                 <span className="h-1.5 w-1.5 bg-current" />
                 {b.active}

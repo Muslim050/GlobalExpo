@@ -141,7 +141,7 @@ export default function Users({ tabs = null }) {
                 <Th>Пользователь</Th>
                 <Th>Контакты</Th>
                 <Th>Роль</Th>
-                <Th>Рекламодатель</Th>
+                <Th>Экспонент</Th>
                 <Th>Доступ</Th>
                 <Th>Создан</Th>
                 <Th className="text-center">Действия</Th>

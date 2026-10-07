@@ -14,7 +14,8 @@ import { Button } from '@/components/ui/Button'
 import { Field, Input, Select, Textarea } from '@/components/ui/Field'
 import { FilePicker } from '@/components/ui/FilePicker.jsx'
 import { SegmentTabs } from '@/components/ui/Tabs.jsx'
-import { ADV_STATUS } from '@/lib/metrics.js'
+import { ADV_STATUS, EXHIBITIONS, PACKAGES } from '@/lib/metrics.js'
+import { amountField, groupDigits, onlyDigits } from '@/lib/format.js'
 import { uid } from '@/lib/id.js'
 import { cn } from '@/lib/cn.js'
 
@@ -51,6 +52,11 @@ const contractsFingerprint = (contracts = []) =>
       number: (contract.number ?? '').trim(),
       campaignName: (contract.campaignName ?? '').trim(),
       legalName: (contract.legalName ?? '').trim(),
+      package: contract.package ?? '',
+      exhibition: contract.exhibition ?? '',
+      standArea: contract.standArea ?? null,
+      // Сумма с сервера — decimal-строка, из формы — цифры: сравниваем числом.
+      budget: Math.round(Number(contract.budget) || 0),
       paymentDate: contract.paymentDate ?? '',
       file: contract.file?.url ?? null,
       creative: contract.creative?.url ?? null,
@@ -103,11 +109,25 @@ const newContract = (legalName = '') => ({
   // Название договора — рекламная кампания, под которую он заключён.
   campaignName: '',
   legalName,
+  // Пакет стенда — из него форма стенда показывает пакет и стоимость.
+  package: '',
+  exhibition: '',
+  // Площадь стенда в м² и стоимость — строками, как их держат поля ввода.
+  standArea: '',
+  budget: '',
   paymentDate: `${new Date().getFullYear()}-08-31`,
   file: null,
   // Ролик договора — подставляется в кампании по этому договору.
   creative: null,
 })
+
+/** Площадь из поля ввода: пусто — null, «12,5» — 12.5. */
+const areaOrNull = (value) => {
+  const text = String(value ?? '')
+    .trim()
+    .replace(',', '.')
+  return text ? Number(text) : null
+}
 
 /** Пустая строка в поле-дате означает «не задано» — сервер ждёт null. */
 const dateOrNull = (value) => (value?.trim() ? value : null)
@@ -121,6 +141,11 @@ const toContractInput = (contract, before) => ({
   number: contract.number,
   campaignName: (contract.campaignName ?? '').trim(),
   legalName: (contract.legalName ?? '').trim(),
+  package: contract.package ?? '',
+  exhibition: contract.exhibition ?? '',
+  standArea: areaOrNull(contract.standArea),
+  // Стоимость уходит отдельным запросом — см. syncContracts.
+  budget: onlyDigits(contract.budget) || '0',
   paymentDate: dateOrNull(contract.paymentDate),
   ...contractFileInput(contract, before),
 })
@@ -137,7 +162,12 @@ const formFrom = (advertiser) => ({
   requisites: requisitesToText(advertiser.requisites),
   color: advertiser.color,
   logo: logoToFile(advertiser),
-  contracts: (advertiser.contracts ?? []).map((contract) => ({ ...contract })),
+  contracts: (advertiser.contracts ?? []).map((contract) => ({
+    ...contract,
+    standArea: contract.standArea == null ? '' : String(contract.standArea),
+    // Сумма приходит decimal-строкой — в поле держим целые цифры.
+    budget: onlyDigits(amountField(contract.budget)),
+  })),
 })
 
 export function AdvertiserForm({ open, onClose, initial }) {
@@ -299,14 +329,14 @@ export function AdvertiserForm({ open, onClose, initial }) {
             // Про договоры говорим отдельно — их правят чаще остального.
             toast.success(
               contractsChanged
-                ? `Раздел «Договоры» у рекламодателя ${advertiser.name} успешно обновлён`
+                ? `Раздел «Договоры» у экспонента ${advertiser.name} успешно обновлён`
                 : `Карточка бренда ${advertiser.name} сохранена`,
             )
             // Карточка закроется сама, показав «Сохранено».
             setSaved(true)
             return
           }
-          toast.success(`Рекламодатель ${advertiser.name} добавлен`)
+          toast.success(`Экспонент ${advertiser.name} добавлен`)
           onClose()
         },
         onError: (err) => {
@@ -325,7 +355,7 @@ export function AdvertiserForm({ open, onClose, initial }) {
             setErrors(err.fields)
           }
 
-          const message = err.message || 'Не удалось сохранить рекламодателя'
+          const message = err.message || 'Не удалось сохранить экспонента'
           toast.error(
             // Бренд завели мы же, в этой попытке: без этой оговорки человек
             // закроет карточку и заведёт его ещё раз.
@@ -343,7 +373,7 @@ export function AdvertiserForm({ open, onClose, initial }) {
       open={open}
       onClose={onClose}
       logo={<Logo size={40} withWord={false} />}
-      title={editing ? 'Редактировать рекламодателя' : 'Новый рекламодатель'}
+      title={editing ? 'Редактировать экспонента' : 'Новый экспонент'}
       description="Карточка бренда с контактами."
       size="lg"
       footer={
@@ -475,7 +505,7 @@ export function AdvertiserForm({ open, onClose, initial }) {
 
           {/* Логотип показывается вместо инициалов в карточках и таблицах. */}
           <Field
-            label="Логотип рекламодателя"
+            label="Логотип экспонента"
             hint="Выберите логотип или перетащите файл"
           >
             <div className="flex items-center gap-3">
@@ -512,8 +542,7 @@ export function AdvertiserForm({ open, onClose, initial }) {
               Договоров пока нет
             </p>
             <p className="mt-1 text-[13px] text-ink-muted">
-              Из этих договоров рекламодатель выбирает договор при создании
-              кампании.
+              Из этих договоров экспонент выбирает договор при заказе стенда.
             </p>
           </div>
         )}
@@ -563,6 +592,68 @@ export function AdvertiserForm({ open, onClose, initial }) {
                   url={contract.file?.url}
                   addedAt={contract.file?.addedAt}
                   onPick={(file) => setContract(contract.id, { file })}
+                />
+              </Field>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Выставка">
+                <Select
+                  value={contract.exhibition ?? ''}
+                  onChange={(e) =>
+                    setContract(contract.id, { exhibition: e.target.value })
+                  }
+                >
+                  <option value="">— не выбрана —</option>
+                  {EXHIBITIONS.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Пакет">
+                <Select
+                  value={contract.package ?? ''}
+                  onChange={(e) =>
+                    setContract(contract.id, { package: e.target.value })
+                  }
+                >
+                  <option value="">— не выбран —</option>
+                  {Object.entries(PACKAGES).map(([key, meta]) => (
+                    <option key={key} value={key}>
+                      {meta.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Площадь, м²">
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min="0.1"
+                  max="1000"
+                  step="0.5"
+                  value={contract.standArea ?? ''}
+                  onChange={(e) =>
+                    setContract(contract.id, { standArea: e.target.value })
+                  }
+                  placeholder="Например, 12"
+                />
+              </Field>
+              <Field label="Стоимость">
+                <Input
+                  inputMode="numeric"
+                  value={groupDigits(contract.budget)}
+                  onChange={(e) =>
+                    setContract(contract.id, {
+                      budget: onlyDigits(e.target.value),
+                    })
+                  }
+                  placeholder="Например, 120 000 000"
                 />
               </Field>
             </div>

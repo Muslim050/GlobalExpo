@@ -16,8 +16,14 @@ import { Modal } from '@/components/ui/Modal.jsx'
 import { Button } from '@/components/ui/Button'
 import { Field, Input, Select } from '@/components/ui/Field'
 import { FilePicker } from '@/components/ui/FilePicker.jsx'
-import { CONTRACT_STATUS } from '@/lib/metrics.js'
-import { formatDate, formatDateTime } from '@/lib/format.js'
+import {
+  CONTRACT_STATUS,
+  EXHIBITIONS,
+  PACKAGES,
+  exhibitionLabel,
+  packageLabel,
+} from '@/lib/metrics.js'
+import { formatDate, formatDateTime, formatNumber } from '@/lib/format.js'
 
 const emptyContract = () => ({
   // Договор заводят действующим, дальше статус ведёт площадка.
@@ -25,11 +31,25 @@ const emptyContract = () => ({
   // Название договора — рекламная кампания, под которую он заключён.
   campaignName: '',
   legalName: '',
+  // Пакет стенда — форма стенда показывает его из договора.
+  package: '',
+  // Выставка договора — форма стенда тоже берёт её отсюда.
+  exhibition: '',
+  // Площадь стенда в м² — строкой, как её держит поле ввода.
+  standArea: '',
   paymentDate: `${new Date().getFullYear()}-08-31`,
   file: null,
   // Ролик договора — его подставляем в кампании по этому договору.
   creative: null,
 })
+
+/** Площадь из поля ввода: пусто — null, «12,5» — 12.5. */
+const areaOrNull = (value) => {
+  const text = String(value ?? '')
+    .trim()
+    .replace(',', '.')
+  return text ? Number(text) : null
+}
 
 /** Строка «поле — значение» для режима просмотра. */
 function Row({ label, value }) {
@@ -96,6 +116,9 @@ export function ContractModal({ open, contract, advertiser, onClose }) {
     number: contract?.number ?? newContractKey(),
     campaignName: name,
     legalName: (form.legalName ?? '').trim(),
+    package: form.package ?? '',
+    exhibition: form.exhibition ?? '',
+    standArea: areaOrNull(form.standArea),
     paymentDate: form.paymentDate || null,
     status: form.status ?? 'active',
     ...contractFileInput(form, contract),
@@ -161,7 +184,7 @@ export function ContractModal({ open, contract, advertiser, onClose }) {
     const ok = await confirm({
       title: 'Удалить договор?',
       description: contractTitle(contract),
-      body: 'Кампании, оформленные по нему, останутся.',
+      body: 'Стенды, оформленные по нему, останутся.',
     })
     if (!ok) return
 
@@ -217,9 +240,16 @@ export function ContractModal({ open, contract, advertiser, onClose }) {
       {!canEditTerms ? (
         <dl className="space-y-2">
           {/* Название кампании рекламодатель правит ниже, дублировать не нужно. */}
-          {!canEditCampaign && (
-            <Row label="Рекламная кампания" value={form.campaignName} />
-          )}
+          {!canEditCampaign && <Row label="Стенд" value={form.campaignName} />}
+          <Row
+            label="Выставка"
+            value={form.exhibition ? exhibitionLabel(form.exhibition) : null}
+          />
+          <Row label="Пакет" value={packageLabel(form.package)} />
+          <Row
+            label="Площадь стенда"
+            value={form.standArea ? `${formatNumber(form.standArea)} м²` : null}
+          />
           <Row
             label="Статус"
             value={CONTRACT_STATUS[form.status ?? 'active']?.label}
@@ -275,9 +305,9 @@ export function ContractModal({ open, contract, advertiser, onClose }) {
           {canEditCampaign && (
             <div className="mt-4 space-y-4 rounded-2xl border border-line bg-paper/40 p-4">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-                Заполняет рекламодатель
+                Заполняет экспонент
               </p>
-              <Field label="Название рекламной кампании">
+              <Field label="Название стенда">
                 <Input
                   value={form.campaignName ?? ''}
                   onChange={(e) => set('campaignName', e.target.value)}
@@ -310,7 +340,7 @@ export function ContractModal({ open, contract, advertiser, onClose }) {
             label="Название договора"
             required
             error={error}
-            hint="Рекламная кампания, под которую заключён договор."
+            hint="Стенд, под который заключён договор."
           >
             <Input
               value={form.campaignName ?? ''}
@@ -319,6 +349,57 @@ export function ContractModal({ open, contract, advertiser, onClose }) {
                 setError('')
               }}
               placeholder="Например, Artel — сезон выставок"
+            />
+          </Field>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Выставка"
+              hint="Экспонент увидит её в форме заказа стенда."
+            >
+              <Select
+                value={form.exhibition ?? ''}
+                onChange={(e) => set('exhibition', e.target.value)}
+              >
+                <option value="">— не выбрана —</option>
+                {EXHIBITIONS.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field
+              label="Пакет"
+              hint="Его экспонент увидит в форме заказа стенда."
+            >
+              <Select
+                value={form.package ?? ''}
+                onChange={(e) => set('package', e.target.value)}
+              >
+                <option value="">— не выбран —</option>
+                {Object.entries(PACKAGES).map(([key, meta]) => (
+                  <option key={key} value={key}>
+                    {meta.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+
+          <Field
+            label="Площадь стенда, м²"
+            hint="Подставится в форму заказа стенда."
+          >
+            <Input
+              type="number"
+              inputMode="decimal"
+              min="0.1"
+              max="1000"
+              step="0.5"
+              value={form.standArea ?? ''}
+              onChange={(e) => set('standArea', e.target.value)}
+              placeholder="Например, 12"
             />
           </Field>
 
@@ -358,7 +439,7 @@ export function ContractModal({ open, contract, advertiser, onClose }) {
               но показываем справкой. */}
           {form.creative && (
             <div className="rounded-2xl border border-line bg-paper/40 p-4">
-              <p className="eyebrow text-ink-muted">От рекламодателя</p>
+              <p className="eyebrow text-ink-muted">От экспонента</p>
               <button
                 type="button"
                 onClick={() => downloadFile(form.creative)}

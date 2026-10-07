@@ -49,6 +49,11 @@ export const STATUS = {
   sent: { label: 'Отправлен', tone: 'warning' },
   received: { label: 'Получен', tone: 'warning' },
   reviewing: { label: 'Рассматривается', tone: 'warning' },
+  // 3D проект стенда: площадка отправила его экспоненту, тот подтверждает
+  // или возвращает на доработку с замечанием.
+  project_sent: { label: 'Проект на согласовании', tone: 'warning' },
+  project_rework: { label: 'Проект на доработке', tone: 'danger' },
+  project_approved: { label: 'Проект согласован', tone: 'success' },
   active: { label: 'Активен', tone: 'success' },
   completed: { label: 'Завершен', tone: 'danger' },
   // Кампания отработала, но деньги ещё не пришли.
@@ -57,6 +62,37 @@ export const STATUS = {
   paid: { label: 'Оплачен', tone: 'success' },
   archived: { label: 'В архиве', tone: 'muted' },
 }
+
+/**
+ * Категории стендов — пакеты договора. Внутри каждой в разделе «Стенды»
+ * площадка ведёт свои стенды, например «Стандарт (сентябрь)».
+ */
+export const PACKAGES = {
+  standard: { label: 'Стандарт' },
+  vip: { label: 'VIP' },
+  platinum: { label: 'Platinum' },
+}
+
+export const packageLabel = (key) => PACKAGES[key]?.label || ''
+
+/** Выставки Global Expo — на какую из них заказывают стенд. */
+export const EXHIBITIONS = [
+  { id: 'uzcharmexpo', label: 'UzCharmExpo' },
+  { id: 'eurasia', label: 'EURASIA' },
+  { id: 'banks-business', label: 'Banks & Business Expo' },
+  { id: 'maker-faire', label: 'Maker Faire' },
+  { id: 'nextstep', label: 'NextStep' },
+  { id: 'uzcharmstyle', label: 'UzCharmStyle' },
+]
+
+export const exhibitionLabel = (id) =>
+  EXHIBITIONS.find((e) => e.id === id)?.label || id
+
+/**
+ * Стенд отработал: «Завершен», а затем «Ожидает оплату» и «Оплачен». Фото и
+ * видео отчёт нужен на всех трёх — иначе он пропадал бы со сменой оплаты.
+ */
+export const FINISHED_STATUSES = ['completed', 'awaiting_payment', 'paid']
 
 /** Статус самого договора — его ведёт площадка вручную. */
 export const CONTRACT_STATUS = {

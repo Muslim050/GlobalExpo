@@ -3,7 +3,7 @@ import type { Role, User } from '@/api/types'
 export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Администратор',
   viewer: 'Наблюдатель',
-  advertiser: 'Рекламодатель',
+  advertiser: 'Экспонент',
 }
 
 /**

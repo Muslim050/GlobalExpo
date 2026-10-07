@@ -3,9 +3,12 @@ import { createPortal } from 'react-dom'
 import { Plus, Trash2, X } from 'lucide-react'
 import { useAuth } from '@/features/auth/useAuth'
 import {
+  amountField,
   formatDateTime,
   formatMoney,
   formatPct,
+  groupDigits,
+  onlyDigits,
   paidAtOf,
 } from '@/lib/format.js'
 import { Button } from '@/components/ui/Button'
@@ -13,22 +16,6 @@ import { Field, Input } from '@/components/ui/Field'
 import { cn } from '@/lib/cn.js'
 
 const WIDTH = 300
-
-// В полях суммы показываем разряды: 200000000 → «200 000 000».
-const onlyDigits = (value) => String(value ?? '').replace(/\D/g, '')
-const groupDigits = (value) => {
-  const digits = onlyDigits(value)
-  return digits ? digits.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') : ''
-}
-/**
- * Ноль в поле не показываем — его пришлось бы стирать перед вводом суммы.
- * Сумма приходит и числом, и decimal-строкой («890000.00»): точку убираем
- * округлением, иначе разрядка превратила бы её в 89 000 000.
- */
-const amountField = (value) => {
-  const rounded = Math.round(Number(value) || 0)
-  return rounded ? groupDigits(String(rounded)) : ''
-}
 
 /** Дата со временем для input[type=datetime-local] — в местной зоне. */
 const toDateTimeInput = (date) => {

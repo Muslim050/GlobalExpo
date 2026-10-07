@@ -90,7 +90,7 @@ export function UserForm({ open, onClose, initial }) {
     // «оставить прежний».
     if (!editing && !form.password) err.password = 'Задайте пароль'
     if (form.role === 'advertiser' && !form.advertiserId)
-      err.advertiserId = 'Выберите рекламодателя'
+      err.advertiserId = 'Выберите экспонента'
     setErrors(err)
     if (Object.keys(err).length) return
 
@@ -229,7 +229,7 @@ export function UserForm({ open, onClose, initial }) {
           {/* Рекламодателя спрашиваем только у этой роли: площадка и
               наблюдатель видят всех. */}
           {form.role === 'advertiser' && (
-            <Field label="Рекламодатель" required error={errors.advertiserId}>
+            <Field label="Экспонент" required error={errors.advertiserId}>
               <Select
                 value={form.advertiserId}
                 onChange={(e) => set('advertiserId', e.target.value)}

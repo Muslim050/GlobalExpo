@@ -84,10 +84,13 @@ const STATUS_ORDER = {
   sent: 0,
   received: 1,
   reviewing: 2,
-  active: 3,
-  completed: 4,
-  awaiting_payment: 5,
-  paid: 6,
+  project_sent: 3,
+  project_rework: 4,
+  project_approved: 5,
+  active: 6,
+  completed: 7,
+  awaiting_payment: 8,
+  paid: 9,
 }
 
 // Метка статуса перед названием: цветная полоска у кампаний, по которым
@@ -95,6 +98,9 @@ const STATUS_ORDER = {
 const STATUS_MARKS = {
   sent: 'bg-sky-500',
   reviewing: 'bg-orange-500',
+  // Проект ждёт ответа экспонента или вернулся к площадке с замечанием.
+  project_sent: 'bg-indigo-500',
+  project_rework: 'bg-orange-500',
   awaiting_payment: 'bg-red-500',
 }
 
@@ -346,6 +352,10 @@ export default function Campaigns() {
     sent: scoped.filter((c) => c.status === 'sent').length,
     received: scoped.filter((c) => c.status === 'received').length,
     reviewing: scoped.filter((c) => c.status === 'reviewing').length,
+    project_sent: scoped.filter((c) => c.status === 'project_sent').length,
+    project_rework: scoped.filter((c) => c.status === 'project_rework').length,
+    project_approved: scoped.filter((c) => c.status === 'project_approved')
+      .length,
     active: scoped.filter((c) => c.status === 'active').length,
     completed: scoped.filter((c) => c.status === 'completed').length,
     awaiting_payment: scoped.filter((c) => c.status === 'awaiting_payment')
@@ -367,6 +377,21 @@ export default function Campaigns() {
             count: counts.reviewing,
           },
         ]),
+    {
+      value: 'project_sent',
+      label: 'Проект на согласовании',
+      count: counts.project_sent,
+    },
+    {
+      value: 'project_rework',
+      label: 'Проект на доработке',
+      count: counts.project_rework,
+    },
+    {
+      value: 'project_approved',
+      label: 'Проект согласован',
+      count: counts.project_approved,
+    },
     { value: 'active', label: 'Активные', count: counts.active },
     { value: 'completed', label: 'Завершенные', count: counts.completed },
     {
@@ -576,25 +601,26 @@ export default function Campaigns() {
 
   // Пока кампаний нет, фильтры и вкладки брендов пустые — показываем только
   // ожидание, а раздел проявляем целиком, когда данные пришли.
-  if (isPending) return <Loader label="Загружаем кампании…" />
+  if (isPending) return <Loader label="Загружаем стенды…" />
 
   return (
     <FadeIn>
       <PageHeader
-        title="Кампании"
+        title="Стенды"
         subtitle={
           isAdvertiser
             ? 'Ваши заявки на размещение, договоры и отчёты по месяцам.'
-            : 'Заявки рекламодателей, договоры, оплаты и отчёты по месяцам.'
+            : 'Заявки экспонентов, договоры, оплаты и отчёты по месяцам.'
         }
       >
-        {isAdvertiser && (
+        {/* Стенд заказывает экспонент или создаёт площадка, наблюдатель — нет. */}
+        {canEdit && (
           <Button
             variant="primary"
             onClick={() => setModal({ open: true, initial: null })}
           >
             <Plus size={18} />
-            Новая кампания
+            {isAdvertiser ? 'Заказать стенд' : 'Создать стенд'}
           </Button>
         )}
       </PageHeader>
@@ -611,7 +637,7 @@ export default function Campaigns() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === 'Escape' && setQ('')}
-            aria-label="Поиск кампании"
+            aria-label="Поиск стенда"
             placeholder="Поиск по названию…"
             className={cn(
               'h-11 w-full rounded-xl border border-line bg-surface pl-9 pr-9 text-sm text-ink transition-colors placeholder:text-ink-muted hover:border-indigo-300 focus-ring focus-visible:border-indigo-300',
@@ -847,7 +873,7 @@ export default function Campaigns() {
             value={monthView}
             onChange={setMonthTab}
             items={[
-              { value: 'campaigns', label: 'Кампании', count: filtered.length },
+              { value: 'campaigns', label: 'Стенды', count: filtered.length },
               { value: 'stats', label: 'Статистика' },
             ]}
           />
@@ -859,7 +885,7 @@ export default function Campaigns() {
           {isError ? (
             <EmptyState
               icon={Megaphone}
-              title="Не удалось загрузить кампании"
+              title="Не удалось загрузить стенды"
               description={error?.message ?? 'Попробуйте ещё раз.'}
               action={
                 <Button variant="secondary" onClick={() => refetch()}>
@@ -870,14 +896,14 @@ export default function Campaigns() {
           ) : filtered.length === 0 ? (
             <EmptyState
               icon={Megaphone}
-              title="Кампаний нет"
+              title="Стендов нет"
               description={
                 isAdvertiser
-                  ? 'Измените фильтры или создайте новую кампанию.'
-                  : 'По выбранным фильтрам кампаний нет.'
+                  ? 'Измените фильтры или закажите новый стенд.'
+                  : 'По выбранным фильтрам стендов нет.'
               }
               action={
-                isAdvertiser ? (
+                canEdit ? (
                   <Button
                     variant="secondary"
                     onClick={() => setModal({ open: true, initial: null })}
@@ -899,7 +925,7 @@ export default function Campaigns() {
               >
                 <span className="flex items-center gap-2.5">
                   <span className="w-5 shrink-0">№</span>
-                  Кампания
+                  Стенд
                 </span>
                 <span>Статус</span>
                 <span>Период</span>
@@ -1011,7 +1037,7 @@ export default function Campaigns() {
                               !canEditMoney
                                 ? 'История выплат'
                                 : c.status === 'completed'
-                                  ? 'Завершённая кампания — только история выплат'
+                                  ? 'Завершённый стенд — только история выплат'
                                   : 'Изменить суммы и внести поступление'
                             }
                             className="group w-full rounded-lg px-1 py-0.5 text-left transition-colors enabled:hover:bg-ink/4 disabled:cursor-default focus-ring"
@@ -1057,7 +1083,7 @@ export default function Campaigns() {
                                   params: { campaignId: c.id },
                                 })
                               }
-                              aria-label={`Статистика кампании ${c.name}`}
+                              aria-label={`Статистика стенда ${c.name}`}
                               title="Статистика"
                             >
                               <BarChart3 size={15} />
@@ -1079,7 +1105,7 @@ export default function Campaigns() {
                           size="sm"
                           className="h-9 w-9 shrink-0 px-0"
                           onClick={() => setPreview(c)}
-                          aria-label={`Открыть кампанию ${c.name}`}
+                          aria-label={`Открыть стенд ${c.name}`}
                           title="Открыть"
                         >
                           <FolderOpen size={16} />
@@ -1094,20 +1120,20 @@ export default function Campaigns() {
                               onClick={() =>
                                 setModal({ open: true, initial: c })
                               }
-                              aria-label={`Редактировать кампанию ${c.name}`}
+                              aria-label={`Редактировать стенд ${c.name}`}
                               title="Редактировать"
                             >
                               <Pencil size={16} />
                             </Button>
                             {/* Удаление кампании временно скрыто.
-                            Запущенную и завершённую кампанию удалять нельзя.
+                            Запущенный и завершённый стенд удалять нельзя.
                         {c.status !== 'active' && c.status !== 'completed' && (
                           <Button
                             variant="danger"
                             size="sm"
                             className="h-9 w-9 shrink-0 px-0"
                             onClick={() => del(c)}
-                            aria-label={`Удалить кампанию ${c.name}`}
+                            aria-label={`Удалить стенд ${c.name}`}
                             title="Удалить"
                           >
                             <Trash2 size={16} />
@@ -1185,6 +1211,8 @@ export default function Campaigns() {
       <CampaignForm
         open={modal.open}
         initial={modal.initial}
+        // Площадке на вкладке бренда подставляем его сразу.
+        defaultAdvertiserId={activeBrand === ALL_BRANDS ? null : activeBrand}
         onClose={() => setModal({ open: false, initial: null })}
       />
 
@@ -1192,12 +1220,6 @@ export default function Campaigns() {
         campaign={preview}
         advertiser={previewAdvertiser}
         onClose={() => setPreview(null)}
-        onOpenStats={() =>
-          navigate({
-            to: '/app/campaigns/$campaignId',
-            params: { campaignId: preview.id },
-          })
-        }
       />
     </FadeIn>
   )

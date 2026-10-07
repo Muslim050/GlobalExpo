@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as advertisersApi from '@/api/endpoints/advertisers'
+import * as contractsApi from '@/api/endpoints/contracts'
 import { useAuth } from '@/features/auth/useAuth'
 import { PAGE_SIZE, fetchAllPages } from '@/lib/paginate'
 import type {
@@ -109,7 +110,16 @@ function isUnchanged(
 /** Договор в форме: у нового id ещё локальный, строковый. */
 export interface EditableContract extends ContractInput {
   id: number | string
+  /**
+   * Стоимость — сумма договора. Её сервер принимает только отдельным
+   * запросом `/contracts/:id/amounts`, поэтому едет мимо условий договора.
+   */
+  budget?: string
 }
+
+/** Сумма договора поменялась — суммы сравниваем числами, а не строками. */
+const budgetChanged = (before: string | undefined, next: string | undefined) =>
+  next !== undefined && Number(before || 0) !== Number(next || 0)
 
 /**
  * Приводит договоры бренда к тому, что собрано в форме. Внутри бренда они
@@ -137,16 +147,28 @@ async function syncContracts(
     }
   }
 
-  for (const { id, ...fields } of next) {
+  for (const { id, budget, ...fields } of next) {
     if (typeof id !== 'number') {
-      await advertisersApi.contracts.create(advertiserId, fields)
+      const created = await advertisersApi.contracts.create(
+        advertiserId,
+        fields,
+      )
+      if (budgetChanged('0', budget)) {
+        await contractsApi.updateAmounts(created.id, { budget })
+      }
       changed = true
       continue
     }
-    const before = previousById.get(id) as unknown as Record<string, unknown>
-    if (isUnchanged(before, fields)) continue
-    await advertisersApi.contracts.update(advertiserId, id, fields)
-    changed = true
+    const previousContract = previousById.get(id)
+    const before = previousContract as unknown as Record<string, unknown>
+    if (!isUnchanged(before, fields)) {
+      await advertisersApi.contracts.update(advertiserId, id, fields)
+      changed = true
+    }
+    if (budgetChanged(previousContract?.budget, budget)) {
+      await contractsApi.updateAmounts(id, { budget })
+      changed = true
+    }
   }
 
   return changed

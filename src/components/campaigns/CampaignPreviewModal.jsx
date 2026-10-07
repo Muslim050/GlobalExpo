@@ -1,29 +1,38 @@
 import { useEffect, useState } from 'react'
 import {
-  BarChart3,
   Download,
   CalendarDays,
-  ExternalLink,
   Gauge,
   FileText,
-  Film,
   FolderOpen,
+  Package,
+  Ruler,
 } from 'lucide-react'
 import { useAuth } from '@/features/auth/useAuth'
-import { STATUS, statusLabel, timeProgress } from '@/lib/metrics.js'
+import {
+  FINISHED_STATUSES,
+  STATUS,
+  exhibitionLabel,
+  packageLabel,
+  statusLabel,
+  timeProgress,
+} from '@/lib/metrics.js'
 import {
   formatDate,
   formatDateTime,
   formatMoney,
   formatMoneyCompact,
+  formatNumber,
   formatPct,
   paidAtOf,
 } from '@/lib/format.js'
 import { Modal } from '@/components/ui/Modal.jsx'
+import { ProjectPanel } from '@/components/campaigns/ProjectPanel.jsx'
+import { StandReportPanel } from '@/components/campaigns/StandReportPanel.jsx'
 import { Tooltip } from '@/components/ui/Tooltip.jsx'
 import { Button } from '@/components/ui/Button'
 import { Progress } from '@/components/ui/Progress.jsx'
-import { downloadFile, fileHref } from '@/features/files/download'
+import { downloadFile } from '@/features/files/download'
 import { cn } from '@/lib/cn.js'
 import { advertiserLogo } from '@/features/advertisers/logo'
 import { contractTitle } from '@/features/contracts/title'
@@ -43,6 +52,21 @@ const STATUS_UI = {
     shell: 'border-yellow-200 bg-yellow-50 text-yellow-700',
     dot: 'bg-yellow-400',
     value: 'border-yellow-200 bg-surface text-yellow-700',
+  },
+  project_sent: {
+    shell: 'border-indigo-200 bg-indigo-50 text-indigo-800',
+    dot: 'bg-indigo-500',
+    value: 'border-indigo-200 bg-surface text-indigo-800',
+  },
+  project_rework: {
+    shell: 'border-orange-200 bg-orange-50 text-orange-700',
+    dot: 'bg-orange-500',
+    value: 'border-orange-200 bg-surface text-orange-700',
+  },
+  project_approved: {
+    shell: 'border-teal-200 bg-teal-50 text-teal-700',
+    dot: 'bg-teal-500',
+    value: 'border-teal-200 bg-surface text-teal-700',
   },
   active: {
     shell: 'border-emerald-200 bg-emerald-50/80 text-emerald-700',
@@ -113,70 +137,6 @@ export function CampaignStatusPill({ status, pacing, createdAt }) {
         )}
       </span>
     </Tooltip>
-  )
-}
-
-/** Внутренности плитки ролика — одни и те же у ссылки и у кнопки. */
-function CreativeBody({ addedAt }) {
-  return (
-    <>
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-ink-muted">
-          Ролик
-        </span>
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-900 transition-transform group-hover:scale-105">
-          <Film size={16} />
-        </span>
-      </div>
-      <p className="mt-3 flex items-center gap-1.5 font-display text-xl font-semibold text-ink">
-        Смотреть
-        <ExternalLink size={15} className="text-ink-muted" />
-      </p>
-      {/* Когда ролик загрузили — видно прямо в карточке кампании. */}
-      {addedAt && (
-        <p className="mt-1 text-[11px] text-ink-muted tnum">
-          Добавлен {formatDateTime(addedAt)}
-        </p>
-      )}
-    </>
-  )
-}
-
-/**
- * Плитка ролика — по клику видео открывается в новой вкладке. Ролик нашего
- * хранилища и ролик по внешней ссылке открываются одинаково: файл отдаётся
- * по слагу без авторизации.
- */
-export function CreativeTile({ url, addedAt }) {
-  if (!url) {
-    return (
-      <div className="rounded-2xl border border-dashed border-line p-4">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-ink-muted">
-            Ролик
-          </span>
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink/6 text-ink-muted">
-            <Film size={16} />
-          </span>
-        </div>
-        <p className="mt-3 text-[13px] text-ink-muted">Не добавлен</p>
-      </div>
-    )
-  }
-
-  const shell =
-    'group rounded-2xl border border-line bg-paper/55 p-4 text-left transition-colors hover:border-indigo-300 hover:bg-indigo-50 focus-ring'
-
-  return (
-    <a
-      href={fileHref(url)}
-      target="_blank"
-      rel="noreferrer"
-      title="Открыть ролик в новой вкладке"
-      className={shell}
-    >
-      <CreativeBody addedAt={addedAt} />
-    </a>
   )
 }
 
@@ -272,14 +232,13 @@ function ContractTiles({ contract }) {
   )
 }
 
-export function CampaignPreviewModal({
-  campaign,
-  advertiser,
-  onClose,
-  onOpenStats,
-}) {
+export function CampaignPreviewModal({ campaign, advertiser, onClose }) {
   const { isAdvertiser } = useAuth()
   const [showPayments, setShowPayments] = useState(false)
+  // Карточка открыта со снимком стенда из списка. После работы с 3D проектом
+  // сервер присылает стенд заново — показываем его, пока карточка открыта.
+  const [fresh, setFresh] = useState(null)
+  const shown = fresh && fresh.id === campaign?.id ? fresh : campaign
 
   // Договор кампании: из него берутся деньги, поступления и всё, чего нет
   // в снимке условий самой кампании.
@@ -293,18 +252,6 @@ export function CampaignPreviewModal({
   const budget = Number(contract?.budget) || 0
   const spent = Number(contract?.spent) || 0
   const pacing = budget ? (spent / budget) * 100 : 0
-  // Ролик у кампании свой, но чаще он один на договор — тогда показываем его.
-  // Свой ролик приходит файлом (`creative`), у записей постарше — ссылкой.
-  const creative =
-    campaign?.creative ??
-    (campaign?.creativeUrl
-      ? { url: campaign.creativeUrl, addedAt: campaign.creativeAddedAt }
-      : null) ??
-    contract?.creative ??
-    null
-  const creativeUrl = creative?.url ?? ''
-  const creativeAddedAt = creative?.addedAt ?? null
-
   // Открыли другую кампанию — историю снова прячем.
   useEffect(() => {
     setShowPayments(false)
@@ -316,23 +263,14 @@ export function CampaignPreviewModal({
       onClose={onClose}
       icon={FolderOpen}
       logo={advertiserLogo(advertiser)}
-      title={campaign?.name || 'Кампания'}
-      description={advertiser?.name || 'Карточка кампании'}
+      title={campaign?.name || 'Стенд'}
+      description={advertiser?.name || 'Карточка стенда'}
       size="lg"
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
             Закрыть
           </Button>
-          {/* Статистика есть только у запущенных и завершённых кампаний. */}
-          {(campaign?.status === 'active' ||
-            campaign?.status === 'completed' ||
-            campaign?.status === 'awaiting_payment') && (
-            <Button variant="primary" onClick={onOpenStats}>
-              <BarChart3 size={16} />
-              Открыть статистику
-            </Button>
-          )}
         </>
       }
     >
@@ -343,16 +281,29 @@ export function CampaignPreviewModal({
             <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-900">
-                  Карточка кампании
+                  Карточка стенда
                 </p>
                 <div className="mt-2 flex items-center gap-2 text-sm text-ink-soft">
                   <CalendarDays size={16} className="text-indigo-800" />
                   {formatDate(campaign.startDate)} —{' '}
                   {formatDate(campaign.endDate)}
                 </div>
+                {contract?.exhibition || contract?.standArea ? (
+                  <div className="mt-1.5 flex items-center gap-2 text-sm text-ink-soft tnum">
+                    <Ruler size={16} className="text-indigo-800" />
+                    {[
+                      contract?.exhibition &&
+                        exhibitionLabel(contract.exhibition),
+                      contract?.standArea &&
+                        `${formatNumber(contract.standArea)} м²`,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </div>
+                ) : null}
               </div>
               <CampaignStatusPill
-                status={campaign.status}
+                status={shown.status}
                 pacing={timeProgress(campaign)}
                 createdAt={campaign.createdAt}
               />
@@ -360,7 +311,13 @@ export function CampaignPreviewModal({
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <CreativeTile url={creativeUrl} addedAt={creativeAddedAt} />
+            {/* Пакет — из договора стенда, как и деньги. */}
+            <ContractTile
+              label="Пакет"
+              icon={Package}
+              value={packageLabel(contract?.package)}
+              empty="Не выбран"
+            />
             <ContractTiles contract={contract} />
 
             {/* Плитка оплаты: по клику раскрывается история выплат. */}
@@ -419,6 +376,14 @@ export function CampaignPreviewModal({
                 )}
               </div>
             </div>
+          )}
+
+          {/* 3D проект стенда и его согласование с экспонентом. */}
+          <ProjectPanel key={shown.id} campaign={shown} onSaved={setFresh} />
+
+          {/* Фото и видео отчёт — только когда стенд отработал. */}
+          {FINISHED_STATUSES.includes(shown.status) && (
+            <StandReportPanel campaign={shown} onSaved={setFresh} />
           )}
         </div>
       )}

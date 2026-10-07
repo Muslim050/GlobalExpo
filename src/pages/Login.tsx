@@ -125,7 +125,7 @@ function ExpoShowcase() {
           Ваш бренд — на&nbsp;главных выставках Узбекистана.
         </h2>
         <p className="mt-5 max-w-md text-[15px] leading-relaxed text-white/60">
-          Кампании, договоры, оплаты и отчёты рекламодателей Global Expo —
+          Стенды, договоры, оплаты и отчёты экспонентов Global Expo —
           в&nbsp;одном кабинете.
         </p>
       </motion.div>

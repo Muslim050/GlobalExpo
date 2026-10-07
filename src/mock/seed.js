@@ -6,10 +6,81 @@
 
 export const TODAY = '2026-09-30'
 
-const ADMIN = 'Дилшод Каримов'
+const ADMIN = 'Меликулов А.А.'
 const MANAGER = 'Ольга Ким'
 const DEMO_SPOT = '/creatives/global-expo-demo.mp4'
 const CONTRACT_SCAN = '/contracts/nda-artel.docx'
+
+// Каталог стендов: что получает экспонент в каждом пакете. Фото — снимки
+// с выставок Global Expo; правит каталог площадка в разделе «Стенды».
+const PACKAGE_CATALOG = [
+  {
+    key: 'standard-1',
+    category: 'standard',
+    name: 'Стандарт',
+    area: 26,
+    price: 180_000_000,
+    description:
+      'Компактный стенд в общем ряду павильона — чтобы заявить о бренде и встретить посетителей.',
+    features: [
+      'Площадь 26 м², застройка «под ключ»',
+      'Стойка ресепшн и два стула',
+      'Фриз с названием компании',
+      'Освещение и розетка 220 В',
+      'Упоминание в каталоге выставки',
+    ],
+    photos: ['stand-5.webp'],
+  },
+  {
+    key: 'vip-1',
+    category: 'vip',
+    name: 'VIP',
+    area: 32,
+    price: 240_000_000,
+    description:
+      'Стенд на пересечении проходов с открытыми сторонами, переговорной зоной и экраном для презентаций.',
+    features: [
+      'Площадь 32 м², угловое место',
+      'Индивидуальный дизайн по 3D проекту',
+      'Переговорная зона и подсобка',
+      'LED-экран 2×1 м',
+      'Логотип на навигации павильона',
+      'Два бейджа участника',
+    ],
+    photos: ['stand-2.webp', 'stand-1.webp'],
+  },
+  {
+    key: 'platinum-1',
+    category: 'platinum',
+    name: 'Platinum',
+    area: 55,
+    price: 460_000_000,
+    description:
+      'Островной стенд в центре павильона: полная застройка по 3D проекту, медиастены и сопровождение команды Global Expo.',
+    features: [
+      'Площадь 55 м², остров в центре зала',
+      'Застройка по 3D проекту с медиастенами',
+      'Лаунж-зона, переговорная и склад',
+      'Персональный менеджер на всю выставку',
+      'Фото и видео отчёт после выставки',
+      'Анонс в рассылке и соцсетях Global Expo',
+    ],
+    photos: ['stand-3.webp', 'stand-4.webp', 'stand-1.webp'],
+  },
+]
+
+// Фото и видео отчёт завершённых стендов: снимки с выставок Global Expo,
+// у Korzinka вдобавок ролик. Ключ — договор стенда.
+const STAND_REPORTS = {
+  'korzinka-1': [
+    'stand-1.webp',
+    'stand-2.webp',
+    'stand-3.webp',
+    'stand-4.webp',
+    'video',
+  ],
+  'payme-1': ['stand-5.webp', 'stand-3.webp', 'stand-1.webp'],
+}
 
 const pad = (n) => String(n).padStart(2, '0')
 const money = (n) => (Math.round(Number(n) * 100) / 100).toFixed(2)
@@ -74,6 +145,8 @@ const CONTRACTS = [
   {
     brand: 'Artel',
     key: 'artel-1',
+    exhibition: 'uzcharmexpo',
+    package: 'platinum',
     name: 'Artel — сезон выставок',
     since: '2026-01',
     paymentDate: '2026-10-15',
@@ -85,6 +158,8 @@ const CONTRACTS = [
   {
     brand: 'Artel',
     key: 'artel-2',
+    exhibition: 'eurasia',
+    package: 'standard',
     name: 'Artel Smart Home',
     since: '2026-06',
     paymentDate: '2026-10-20',
@@ -96,6 +171,8 @@ const CONTRACTS = [
   {
     brand: 'Click',
     key: 'click-1',
+    exhibition: 'banks-business',
+    package: 'vip',
     name: 'Click — переводы без комиссии',
     since: '2026-03',
     paymentDate: '2026-09-30',
@@ -107,6 +184,8 @@ const CONTRACTS = [
   {
     brand: 'Payme',
     key: 'payme-1',
+    exhibition: 'banks-business',
+    package: 'vip',
     name: 'Рассрочка Payme',
     since: '2026-04',
     paymentDate: '2026-10-15',
@@ -118,6 +197,8 @@ const CONTRACTS = [
   {
     brand: 'Korzinka',
     key: 'korzinka-1',
+    exhibition: 'nextstep',
+    package: 'standard',
     name: 'Korzinka Go — доставка',
     since: '2026-02',
     paymentDate: '2026-08-31',
@@ -129,6 +210,8 @@ const CONTRACTS = [
   {
     brand: 'Coca-Cola Uzbekistan',
     key: 'cola-1',
+    exhibition: 'uzcharmexpo',
+    package: 'platinum',
     name: 'Освежись летом',
     since: '2026-04',
     paymentDate: '2026-08-31',
@@ -213,8 +296,9 @@ const REPORTS = [
 const USERS = [
   [
     'admin',
-    'Дилшод',
-    'Каримов',
+    // Имя показывается как «Имя Фамилия» — так в шапке выходит «Меликулов А.А.».
+    'Меликулов',
+    'А.А.',
     'd.karimov@globalexpo.uz',
     '+998 90 123-45-67',
     'admin',
@@ -343,6 +427,7 @@ export function buildSeed() {
     files: [],
     reports: [],
     imports: [],
+    packages: [],
   }
   const nextId = (kind) => (db.seq[kind] = (db.seq[kind] ?? 0) + 1)
   const addFile = (file) => {
@@ -380,6 +465,10 @@ export function buildSeed() {
       number: key,
       campaignName: name,
       legalName: adv.legalName,
+      package: row.package,
+      exhibition: row.exhibition,
+      // Площадь стенда в м² — по пакету договора.
+      standArea: { standard: 26, vip: 32, platinum: 55 }[row.package] ?? null,
       paymentDate,
       status: 'active',
       budget: money(budget),
@@ -454,6 +543,26 @@ export function buildSeed() {
   })
   const contractBy = (number) => db.contracts.find((c) => c.number === number)
 
+  /** Файлы фото и видео отчёта стенда — в общем хранилище, как сканы. */
+  const reportFiles = (number, endDate) =>
+    (STAND_REPORTS[number] ?? []).map((name, i) =>
+      addFile(
+        name === 'video'
+          ? {
+              name: 'Видеообзор стенда.mp4',
+              kind: 'stand_report',
+              href: DEMO_SPOT,
+              addedAt: `${endDate}T18:${pad(10 + i)}:00+05:00`,
+            }
+          : {
+              name: `Фото стенда ${i + 1}.webp`,
+              kind: 'stand_report',
+              href: `/stand-reports/${name}`,
+              addedAt: `${endDate}T18:${pad(10 + i)}:00+05:00`,
+            },
+      ),
+    )
+
   CAMPAIGNS.forEach((row) => {
     const [
       number,
@@ -484,6 +593,7 @@ export function buildSeed() {
       creativeName: creative?.name ?? 'global-expo-demo.mp4',
       creativeAddedAt: creative?.addedAt ?? createdAt,
       creativeId: creative?.id ?? null,
+      standReportIds: reportFiles(number, endDate),
       contractNumber: number,
       legalName: contract.legalName,
       paymentDate: contract.paymentDate,
@@ -546,6 +656,24 @@ export function buildSeed() {
       })
     },
   )
+
+  PACKAGE_CATALOG.forEach(({ photos, price, ...item }, position) => {
+    db.packages.push({
+      ...item,
+      position,
+      price: money(price),
+      features: [...item.features],
+      photoIds: photos.map((name, i) =>
+        addFile({
+          name: `${item.name} ${i + 1}.webp`,
+          kind: 'package_photo',
+          href: `/stand-reports/${name}`,
+          addedAt: '2026-01-15T10:00:00+05:00',
+        }),
+      ),
+      version: 1,
+    })
+  })
 
   return db
 }

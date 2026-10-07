@@ -11,8 +11,9 @@
  */
 import { buildXlsxBook } from '@/lib/xlsx.js'
 import { buildSeed, reportRows, SHEETS, TODAY } from './seed.js'
+import { EXHIBITIONS } from '@/lib/metrics.js'
 
-const STORAGE_KEY = 'globalexpo.mock.v2'
+const STORAGE_KEY = 'globalexpo.mock.v16'
 const PREFIX = '/api/v1'
 /** Небольшая задержка, чтобы ожидание выглядело как у настоящего сервера. */
 const LATENCY_MS = 150
@@ -21,6 +22,9 @@ const PERSIST_FILE_LIMIT = 1.5 * 1024 * 1024
 const XLSX_MIME =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 const REQUIRED = 'Обязательное поле.'
+/** Категории стендов — пакеты договора. */
+const PACKAGE_KEYS = ['standard', 'vip', 'platinum']
+const EXHIBITION_IDS = EXHIBITIONS.map((e) => e.id)
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/
@@ -188,6 +192,47 @@ async function storeUpload(file, kind) {
 
 const extOf = (name) => (/\.([^.]+)$/.exec(name ?? '')?.[1] ?? '').toLowerCase()
 
+/** 3D проект стенда: модели, чертежи, визуализации и архивы с ними. */
+const PROJECT_EXTS = [
+  'skp',
+  '3ds',
+  'max',
+  'obj',
+  'fbx',
+  'stl',
+  'glb',
+  'gltf',
+  'blend',
+  'c4d',
+  'dwg',
+  'dxf',
+  'pdf',
+  'png',
+  'jpg',
+  'jpeg',
+  'zip',
+  'rar',
+  '7z',
+]
+
+/** Фото и видео отчёт по завершённому стенду: снимки, ролики и архивы. */
+const STAND_REPORT_EXTS = [
+  'jpg',
+  'jpeg',
+  'png',
+  'webp',
+  'heic',
+  'mp4',
+  'mov',
+  'webm',
+  'avi',
+  'mkv',
+  'pdf',
+  'zip',
+  'rar',
+  '7z',
+]
+
 const FILE_RULES = {
   logo: {
     accept: (mime, ext) =>
@@ -205,6 +250,24 @@ const FILE_RULES = {
     accept: (_, ext) =>
       ['pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg'].includes(ext),
     message: 'Договор — PDF, Word или скан-картинка.',
+  },
+  package_photo: {
+    accept: (mime, ext) =>
+      mime.startsWith('image/') ||
+      ['png', 'jpg', 'jpeg', 'webp', 'avif'].includes(ext),
+    message: 'Фото стенда должно быть изображением.',
+  },
+  stand_report: {
+    accept: (mime, ext) =>
+      mime.startsWith('image/') ||
+      mime.startsWith('video/') ||
+      STAND_REPORT_EXTS.includes(ext),
+    message: 'Фото и видео отчёт — фото, видео, PDF или архив.',
+  },
+  project: {
+    accept: (_, ext) => PROJECT_EXTS.includes(ext),
+    message:
+      '3D проект — модель (SKP, 3DS, MAX, OBJ, FBX, GLB…), PDF, картинка или архив.',
   },
 }
 
@@ -396,6 +459,10 @@ function serializeContract(c) {
     number: c.number,
     campaignName: c.campaignName,
     legalName: c.legalName,
+    // У записей из localStorage до появления пакета поля нет.
+    package: c.package ?? '',
+    exhibition: c.exhibition ?? '',
+    standArea: c.standArea ?? null,
     paymentDate: c.paymentDate,
     status: c.status,
     budget: c.budget,
@@ -458,6 +525,22 @@ const serializeCampaign = (c) => ({
   creativeName: c.creativeName,
   creativeAddedAt: c.creativeAddedAt,
   creative: attached(c.creativeId),
+  // 3D проект стенда. У записей из localStorage до него поля нет.
+  project: attached(c.projectId ?? null),
+  // Последнее замечание экспонента к проекту и журнал согласования —
+  // от свежих записей к старым.
+  projectComment: c.projectComment ?? '',
+  // Фото и видео отчёт — появляется у завершённого стенда. Файлов в нём
+  // несколько; id отдаём, чтобы клиент мог убрать отдельный файл.
+  standReport: (c.standReportIds ?? [])
+    .map((id) => {
+      const file = attached(id)
+      return file && { id, ...file }
+    })
+    .filter(Boolean),
+  projectLog: [...(c.projectLog ?? [])]
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at) || b.id - a.id)
+    .map((e) => ({ ...e })),
   contractNumber: c.contractNumber,
   legalName: c.legalName,
   paymentDate: c.paymentDate,
@@ -538,6 +621,16 @@ function reader(body, draft, errors, creating) {
       if (!Number.isFinite(v) || v < 0) errors[k] = 'Введите сумму от нуля.'
       else draft[k] = money(v)
     },
+    /** Площадь в м²: больше нуля, не больше павильона. */
+    area(k, { required = false } = {}) {
+      if (skip(k, required)) return
+      if ((b[k] === null || b[k] === '') && !required)
+        return void (draft[k] = null)
+      const v = Number(b[k])
+      if (!Number.isFinite(v) || v <= 0 || v > 1000) {
+        errors[k] = 'Введите площадь от 0,1 до 1000 м².'
+      } else draft[k] = Math.round(v * 10) / 10
+    },
     bool(k) {
       if (has(k)) draft[k] = !!b[k]
     },
@@ -571,7 +664,7 @@ function getAdvertiser(ctx, id) {
   const adv = db.advertisers.find((a) => a.id === id && alive(a))
   const foreign =
     ctx.user.role === 'advertiser' && ctx.user.advertiserId !== adv?.id
-  if (!adv || foreign) throw notFound('Рекламодатель не найден')
+  if (!adv || foreign) throw notFound('Экспонент не найден')
   return adv
 }
 
@@ -589,7 +682,7 @@ function getCampaign(ctx, id) {
   const foreign =
     ctx.user.role === 'advertiser' &&
     ctx.user.advertiserId !== campaign?.advertiserId
-  if (!campaign || foreign) throw notFound('Кампания не найдена')
+  if (!campaign || foreign) throw notFound('Стенд не найден')
   return campaign
 }
 
@@ -763,6 +856,9 @@ function applyContract(target, body, creating) {
   }
   r.str('campaignName')
   r.str('legalName')
+  r.oneOf('package', ['', ...PACKAGE_KEYS])
+  r.oneOf('exhibition', ['', ...EXHIBITION_IDS])
+  r.area('standArea')
   r.date('paymentDate')
   r.oneOf('status', ['active', 'completed', 'terminated'])
   r.fileRef('fileId', 'fileId')
@@ -779,6 +875,9 @@ route('POST', '/advertisers/:id/contracts', (ctx) => {
       id: null,
       campaignName: '',
       legalName: adv.legalName,
+      package: '',
+      exhibition: '',
+      standArea: null,
       paymentDate: null,
       status: 'active',
       fileId: null,
@@ -1073,6 +1172,9 @@ const CAMPAIGN_STATUSES = [
   'sent',
   'received',
   'reviewing',
+  'project_sent',
+  'project_rework',
+  'project_approved',
   'active',
   'completed',
   'awaiting_payment',
@@ -1156,7 +1258,7 @@ route('POST', '/campaigns', (ctx) => {
     ? ctx.user.advertiserId
     : Number(ctx.body?.advertiserId) || null
   if (!db.advertisers.some((a) => a.id === advertiserId && alive(a))) {
-    throw invalid({ advertiserId: 'Укажите рекламодателя.' })
+    throw invalid({ advertiserId: 'Укажите экспонента.' })
   }
   const draft = applyCampaign(
     {
@@ -1169,6 +1271,10 @@ route('POST', '/campaigns', (ctx) => {
       creativeName: '',
       creativeAddedAt: null,
       creativeId: null,
+      projectId: null,
+      projectComment: '',
+      projectLog: [],
+      standReportIds: [],
       contractNumber: '',
     },
     ctx.body,
@@ -1196,6 +1302,243 @@ route('PATCH', '/campaigns/:id', (ctx) => {
   if (campaign.contractNumber !== before) snapshotContract(campaign)
   campaign.version += 1
   return serializeCampaign(campaign)
+})
+
+/* --- 3D проект стенда: площадка готовит, экспонент согласует --- */
+
+/** Запись в журнал согласования проекта. */
+function logProject(ctx, campaign, action, comment = '') {
+  campaign.projectLog ??= []
+  campaign.projectLog.push({
+    id: nextId('projectEntry'),
+    action,
+    comment,
+    at: nowIso(),
+    by: ctx.user.name,
+  })
+}
+
+// Файл проекта загружает и меняет площадка.
+route('PATCH', '/campaigns/:id/project', (ctx) => {
+  requireAdmin(ctx)
+  const campaign = getCampaign(ctx, intParam(ctx.params.id))
+  const draft = {}
+  const errors = {}
+  reader(ctx.body, draft, errors, false).fileRef('projectId', 'projectId')
+  finish(errors)
+  if ('projectId' in draft) campaign.projectId = draft.projectId
+  campaign.version += 1
+  return serializeCampaign(campaign)
+})
+
+// Площадка отправляет проект экспоненту — стенд уходит на согласование.
+route('POST', '/campaigns/:id/project/send', (ctx) => {
+  requireAdmin(ctx)
+  const campaign = getCampaign(ctx, intParam(ctx.params.id))
+  if (!campaign.projectId) {
+    throw invalid({ projectId: 'Сначала загрузите 3D проект.' })
+  }
+  campaign.status = 'project_sent'
+  campaign.projectComment = ''
+  logProject(ctx, campaign, 'sent')
+  campaign.version += 1
+  return serializeCampaign(campaign)
+})
+
+/** Отвечать на проект можно, только пока он на согласовании. */
+function projectAwaitingReply(ctx) {
+  requireRole(ctx, 'advertiser')
+  const campaign = getCampaign(ctx, intParam(ctx.params.id))
+  if (campaign.status !== 'project_sent') {
+    throw invalid(
+      { status: 'Проект сейчас не на согласовании.' },
+      'Проект сейчас не на согласовании',
+    )
+  }
+  return campaign
+}
+
+// Экспонент подтверждает проект.
+route('POST', '/campaigns/:id/project/approve', (ctx) => {
+  const campaign = projectAwaitingReply(ctx)
+  campaign.status = 'project_approved'
+  campaign.projectComment = ''
+  logProject(ctx, campaign, 'approved')
+  campaign.version += 1
+  return serializeCampaign(campaign)
+})
+
+// Экспонент возвращает проект на доработку — с тем, что исправить.
+route('POST', '/campaigns/:id/project/reject', (ctx) => {
+  const campaign = projectAwaitingReply(ctx)
+  const comment = String(ctx.body?.comment ?? '').trim()
+  if (!comment) throw invalid({ comment: 'Напишите, что исправить.' })
+  campaign.status = 'project_rework'
+  campaign.projectComment = comment
+  logProject(ctx, campaign, 'rework', comment)
+  campaign.version += 1
+  return serializeCampaign(campaign)
+})
+
+// Фото и видео отчёт площадка загружает, когда стенд отработал.
+const FINISHED_STATUSES = ['completed', 'awaiting_payment', 'paid']
+
+route('PATCH', '/campaigns/:id/stand-report', (ctx) => {
+  requireAdmin(ctx)
+  const campaign = getCampaign(ctx, intParam(ctx.params.id))
+  if (!FINISHED_STATUSES.includes(campaign.status)) {
+    throw invalid(
+      { status: 'Отчёт загружают по завершённому стенду.' },
+      'Отчёт загружают по завершённому стенду',
+    )
+  }
+  // Присылают весь список файлов отчёта: так и добавляют, и убирают.
+  const ids = ctx.body?.standReportIds
+  if (!Array.isArray(ids)) {
+    throw invalid({ standReportIds: 'Передайте список файлов.' })
+  }
+  const unique = [...new Set(ids.map(Number))]
+  if (unique.some((id) => !fileById(id))) {
+    throw invalid({ standReportIds: 'Файл не найден.' })
+  }
+  campaign.standReportIds = unique
+  campaign.version += 1
+  return serializeCampaign(campaign)
+})
+
+/* --- каталог стендов --- */
+
+const serializePackage = (p) => ({
+  key: p.key,
+  category: p.category,
+  name: p.name,
+  description: p.description,
+  area: p.area,
+  price: p.price,
+  features: [...p.features],
+  photos: p.photoIds
+    .map((id) => {
+      const file = attached(id)
+      return file && { id, ...file }
+    })
+    .filter(Boolean),
+  version: p.version,
+})
+
+function getPackage(key) {
+  const item = (db.packages ?? []).find((p) => p.key === key)
+  if (!item) throw notFound('Стенд каталога не найден')
+  return item
+}
+
+/** Категории по порядку: от первой заведённой к последней. */
+const orderedPackages = () =>
+  [...(db.packages ?? [])].sort((a, b) => a.position - b.position)
+
+/** Название стенда уникально внутри категории — без учёта регистра. */
+function checkPackageName(name, category, exceptKey, errors) {
+  const taken = (db.packages ?? []).some(
+    (p) =>
+      p.key !== exceptKey &&
+      p.category === category &&
+      p.name.trim().toLowerCase() === name.trim().toLowerCase(),
+  )
+  if (taken)
+    errors.name = 'В этой категории уже есть подкатегория с таким названием.'
+}
+
+// Стенды каталога видят площадка и наблюдатель — экспоненту раздел закрыт.
+route('GET', '/packages', (ctx) => {
+  requireRole(ctx, 'admin', 'viewer')
+  return orderedPackages().map(serializePackage)
+})
+
+/**
+ * Поля подкатегории из тела запроса: название, описание, площадь, цена,
+ * «что входит» и фото. Общие для создания и правки.
+ */
+function applyPackage(target, body, category, exceptKey, creating) {
+  const draft = { ...target }
+  const errors = {}
+  const r = reader(body, draft, errors, creating)
+  r.str('name', { required: true })
+  if (r.has('name') && !draft.name) errors.name = REQUIRED
+  if (draft.name) checkPackageName(draft.name, category, exceptKey, errors)
+  r.str('description')
+  r.area('area')
+  r.amount('price')
+  const b = body ?? {}
+  if ('features' in b) {
+    if (!Array.isArray(b.features)) errors.features = 'Передайте список.'
+    else {
+      draft.features = b.features
+        .map((f) => String(f ?? '').trim())
+        .filter(Boolean)
+    }
+  }
+  if ('photoIds' in b) {
+    const ids = Array.isArray(b.photoIds)
+      ? [...new Set(b.photoIds.map(Number))]
+      : null
+    if (!ids || ids.some((id) => !fileById(id))) {
+      errors.photoIds = 'Фото не найдено.'
+    } else draft.photoIds = ids
+  }
+  finish(errors)
+  return draft
+}
+
+// Новая подкатегория внутри категории, например «Стандарт (сентябрь)» в
+// «Стандарте» — сразу с ценой, площадью, описанием, составом и фото.
+route('POST', '/packages', (ctx) => {
+  requireAdmin(ctx)
+  const category = ctx.body?.category
+  if (!PACKAGE_KEYS.includes(category)) {
+    throw invalid({ category: 'Выберите категорию.' })
+  }
+  const draft = applyPackage(
+    {
+      description: '',
+      area: null,
+      price: '0.00',
+      features: [],
+      photoIds: [],
+    },
+    ctx.body,
+    category,
+    null,
+    true,
+  )
+  const last = orderedPackages().at(-1)
+  const item = {
+    ...draft,
+    key: `stand-${nextId('catalogStand')}`,
+    category,
+    position: (last?.position ?? -1) + 1,
+    version: 1,
+  }
+  db.packages.push(item)
+  return created(serializePackage(item))
+})
+
+// Договоры ссылаются на категорию, а не на стенд каталога, — удалять
+// стенд можно свободно.
+route('DELETE', '/packages/:key', (ctx) => {
+  requireAdmin(ctx)
+  const item = getPackage(ctx.params.key)
+  db.packages = db.packages.filter((p) => p !== item)
+})
+
+route('PATCH', '/packages/:key', (ctx) => {
+  requireAdmin(ctx)
+  const item = getPackage(ctx.params.key)
+  checkVersion(item, ctx.body)
+  Object.assign(
+    item,
+    applyPackage(item, ctx.body, item.category, item.key, false),
+  )
+  item.version += 1
+  return serializePackage(item)
 })
 
 /* --- пользователи --- */
@@ -1233,7 +1576,7 @@ function applyUser(target, body, creating) {
     draft.advertiserId = Number(body.advertiserId) || null
   }
   if (draft.role === 'advertiser' && !draft.advertiserId) {
-    errors.advertiserId = 'Для роли «Рекламодатель» выберите бренд.'
+    errors.advertiserId = 'Для роли «Экспонент» выберите бренд.'
   }
   if (draft.role !== 'advertiser') draft.advertiserId = null
   finish(errors)

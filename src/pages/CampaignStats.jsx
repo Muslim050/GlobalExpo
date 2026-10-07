@@ -119,7 +119,7 @@ function CampaignReport({ campaign, contract }) {
   if (!period) {
     return (
       <p className="rounded-2xl border border-dashed border-line bg-surface px-4 py-3 text-[13px] text-ink-muted">
-        Период кампании ещё не начался — отчёт появится с первым месяцем.
+        Период стенда ещё не начался — отчёт появится с первым месяцем.
       </p>
     )
   }
@@ -144,7 +144,7 @@ function CampaignReport({ campaign, contract }) {
         key={`${contract?.id ?? 'none'}-${period}`}
         contractId={contract?.id}
         period={period}
-        emptyHint="У кампании не указан договор — отчёт из файла статистики ведётся по договору."
+        emptyHint="У стенда не указан договор — отчёт из файла статистики ведётся по договору."
       />
     </>
   )
@@ -204,7 +204,7 @@ export default function CampaignStats() {
   return (
     <div>
       <PageHeader
-        title="Статистика кампании"
+        title="Статистика стенда"
         subtitle="Подробные показатели, динамика и распределение бюджета."
       >
         <Button
@@ -233,7 +233,7 @@ export default function CampaignStats() {
                 {campaign.name}
               </h2>
               <p className="mt-1 text-sm text-ink-muted">
-                {advertiser?.name || 'Рекламодатель не указан'}
+                {advertiser?.name || 'Экспонент не указан'}
               </p>
             </div>
           </div>
@@ -254,10 +254,10 @@ export default function CampaignStats() {
                 Total statistics
               </p>
               <h3 className="mt-2 font-display text-2xl font-semibold text-ink sm:text-3xl">
-                Общая статистика кампании
+                Общая статистика стенда
               </h3>
               <p className="mt-1 max-w-2xl text-sm text-ink-muted">
-                Ключевые показатели кампании «{campaign.name}» за выбранный
+                Ключевые показатели стенда «{campaign.name}» за выбранный
                 период.
               </p>
             </div>

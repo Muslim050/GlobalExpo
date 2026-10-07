@@ -90,7 +90,7 @@ export function ChannelForm({ open, onClose, initial }) {
       onClose={onClose}
       icon={Radio}
       title={editing ? 'Редактировать площадку' : 'Новая площадка'}
-      description="Инвентарь для размещения кампаний."
+      description="Инвентарь для размещения стендов."
       size="lg"
       footer={
         <>

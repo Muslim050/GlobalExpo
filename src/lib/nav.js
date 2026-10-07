@@ -5,12 +5,13 @@ import {
   Radio,
   LineChart,
   FileText,
+  Store,
 } from 'lucide-react'
 
 export const NAV = [
   {
     to: '/app/campaigns',
-    label: 'Кампании',
+    label: 'Стенды',
     icon: Megaphone,
     roles: ['admin', 'viewer', 'advertiser'],
   },
@@ -27,8 +28,14 @@ export const NAV = [
     roles: ['admin', 'viewer'],
   },
   {
+    to: '/app/stands',
+    label: 'Выставки',
+    icon: Store,
+    roles: ['admin', 'viewer'],
+  },
+  {
     to: '/app/advertisers',
-    label: 'Рекламодатели',
+    label: 'Экспоненты',
     icon: Building2,
     roles: ['admin', 'viewer'],
   },

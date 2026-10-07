@@ -48,6 +48,8 @@ export interface Paginated<T> {
 
 export type AdvertiserStatus = 'active' | 'paused'
 export type ContractStatus = 'active' | 'completed' | 'terminated'
+/** Пакет договора — категория стенда. */
+export type ContractPackage = 'standard' | 'vip' | 'platinum'
 /** Пустая строка — статус за период ещё не ставили. */
 export type PaymentStatus = 'awaiting' | 'paid' | ''
 
@@ -98,6 +100,12 @@ export interface Contract {
   /** Название договора — рекламная кампания, под которую он заключён. */
   campaignName: string
   legalName: string
+  /** Пакет стенда. Пустая строка — площадка его ещё не выбрала. */
+  package: ContractPackage | ''
+  /** Выставка договора: id из EXHIBITIONS. Пусто — ещё не выбрана. */
+  exhibition: string
+  /** Площадь стенда в м². `null` — ещё не указана. */
+  standArea: number | null
   paymentDate: string | null
   status: ContractStatus
   budget: string
@@ -122,7 +130,14 @@ export interface Contract {
 export type ContractInput = Partial<
   Pick<
     Contract,
-    'number' | 'campaignName' | 'legalName' | 'paymentDate' | 'status'
+    | 'number'
+    | 'campaignName'
+    | 'legalName'
+    | 'package'
+    | 'exhibition'
+    | 'standArea'
+    | 'paymentDate'
+    | 'status'
   >
 > & {
   /** Скан договора: id из загрузчика файлов. `null` — убрать файл. */
@@ -221,11 +236,62 @@ export type CampaignStatus =
   | 'sent'
   | 'received'
   | 'reviewing'
+  /** 3D проект отправлен экспоненту и ждёт ответа. */
+  | 'project_sent'
+  /** Экспонент вернул проект с замечанием. */
+  | 'project_rework'
+  /** Экспонент подтвердил проект. */
+  | 'project_approved'
   | 'active'
   | 'completed'
   | 'awaiting_payment'
   | 'paid'
   | 'archived'
+
+/** Пакет стенда в каталоге «Стенды»: что получает экспонент. */
+/**
+ * Стенд каталога «Стенды» — внутри категории-пакета. В «Стандарте» их может
+ * быть несколько: «Стандарт», «Стандарт (сентябрь)».
+ */
+export interface StandPackage {
+  key: string
+  category: ContractPackage
+  /** Название стенда: «Стандарт (сентябрь)». */
+  name: string
+  description: string
+  /** Площадь стенда в м². */
+  area: number | null
+  /** Цена пакета — decimal-строкой, как суммы договоров. */
+  price: string
+  /** Что входит в пакет — по пункту на строку. */
+  features: string[]
+  photos: ReportFile[]
+  version: number
+}
+
+export type StandPackageInput = Partial<
+  Pick<
+    StandPackage,
+    'name' | 'description' | 'area' | 'price' | 'features' | 'version'
+  >
+> & {
+  /** Фото пакета — весь список id из загрузчика файлов. */
+  photoIds?: number[]
+}
+
+/** Файл фото и видео отчёта: id нужен, чтобы убрать его из списка. */
+export interface ReportFile extends AttachedFile {
+  id: number
+}
+
+/** Шаг согласования 3D проекта. */
+export interface ProjectLogEntry {
+  id: number
+  action: 'sent' | 'approved' | 'rework'
+  comment: string
+  at: string
+  by: string
+}
 
 export type CampaignObjective =
   'awareness' | 'traffic' | 'conversions' | 'reach'
@@ -254,6 +320,17 @@ export interface Campaign {
   creativeAddedAt: string | null
   /** Ролик, загруженный через `POST /files`. Пишется через `creativeId`. */
   creative: AttachedFile | null
+  /** 3D проект стенда. Пишется через `PATCH /campaigns/:id/project`. */
+  project: AttachedFile | null
+  /** Последнее замечание экспонента к проекту. Пусто — замечаний нет. */
+  projectComment: string
+  /** Журнал согласования проекта — от свежих записей к старым. */
+  projectLog: ProjectLogEntry[]
+  /**
+   * Фото и видео отчёт по завершённому стенду — несколько файлов. Пишется
+   * через `PATCH /campaigns/:id/stand-report` целым списком id.
+   */
+  standReport: ReportFile[]
   /** Внутренний ключ договора кампании — в интерфейсе не показывается. */
   contractNumber: string
   /** Снимок условий договора на момент создания. Только чтение. */
@@ -287,6 +364,11 @@ export type CampaignInput = Partial<
 > & {
   /** Ролик файлом: id из загрузчика. `null` — убрать ролик. */
   creativeId?: number | null
+  /**
+   * Бренд заявки — только на создании и только у площадки. Рекламодателю
+   * сервер берёт бренд из сессии.
+   */
+  advertiserId?: number
 }
 
 /** Ответ загрузчика файлов: `POST /files`. */

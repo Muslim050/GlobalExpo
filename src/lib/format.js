@@ -13,6 +13,22 @@ export const formatMoney = (v) => cf.format(Number(v) || 0)
 
 export const formatMoneyCompact = (v) => nfCompact.format(Number(v) || 0)
 
+// В полях суммы показываем разряды: 200000000 → «200 000 000».
+export const onlyDigits = (value) => String(value ?? '').replace(/\D/g, '')
+export const groupDigits = (value) => {
+  const digits = onlyDigits(value)
+  return digits ? digits.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') : ''
+}
+/**
+ * Ноль в поле не показываем — его пришлось бы стирать перед вводом суммы.
+ * Сумма приходит и числом, и decimal-строкой («890000.00»): точку убираем
+ * округлением, иначе разрядка превратила бы её в 89 000 000.
+ */
+export const amountField = (value) => {
+  const rounded = Math.round(Number(value) || 0)
+  return rounded ? groupDigits(String(rounded)) : ''
+}
+
 export const formatPct = (v, digits = 1) =>
   `${(Number(v) || 0).toFixed(digits)}%`
 

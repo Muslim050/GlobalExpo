@@ -113,7 +113,7 @@ export default function Channels() {
                           {c.name}
                         </p>
                         <p className="text-[12px] text-ink-muted">
-                          {c.type} · {usage(c.id)} кампаний
+                          {c.type} · {usage(c.id)} стендов
                         </p>
                       </div>
                     </div>

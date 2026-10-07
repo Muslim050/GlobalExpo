@@ -5,7 +5,13 @@ import type { StoredFile } from '../types'
  * Загрузчик файлов. Сервер проверяет тип и размер по назначению: скан
  * договора, рекламный ролик или логотип бренда.
  */
-export type FileKind = 'contract' | 'creative' | 'logo'
+export type FileKind =
+  | 'contract'
+  | 'creative'
+  | 'logo'
+  | 'project'
+  | 'stand_report'
+  | 'package_photo'
 
 /** POST /files — multipart. Дату загрузки проставляет сервер. */
 export function upload(file: File, kind: FileKind): Promise<StoredFile> {
